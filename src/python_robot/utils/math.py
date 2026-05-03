@@ -1,0 +1,117 @@
+import typing
+from typing import Callable
+
+import math
+
+import numpy as np
+from scipy.optimize import root_scalar, minimize_scalar
+
+from ..base.types import NumpyArray
+
+
+__all__ = ["solve_quadratic_eq", "find_zero_crossings"]
+
+
+def solve_quadratic_eq(
+    a: float,
+    b: float,
+    c: float, *,
+    dt_floor: float = 1e-12
+) -> tuple[float, float] | float:
+    """
+    Solves the quadratic equation a * x^2 + b * x + c = 0.
+
+    Only real roots are supported.
+
+    Raises
+    ------
+    ValueError:
+        If the discriminant is negative, meaning that the equation has two
+        imaginary roots.
+    """
+    if abs(a) < 1e-16:
+        if abs(b) < 1e-16:
+            raise ValueError("No solution possible.")
+        dt = -c / b
+        if not (dt > dt_floor and math.isfinite(dt)):
+            raise ValueError("No solution possible.")
+        return dt
+
+    D = b ** 2 - 4 * a * c
+    if D < 0:
+        raise ValueError("No real solution.")
+    sqrt_D = math.sqrt(D)
+    q = -0.5 * (b + math.copysign(sqrt_D, b))
+    x1 = q / a
+    x2 = c / q if q != 0.0 else float("inf")
+    sol = tuple(sorted([x1, x2]))
+    return typing.cast(tuple[float, float], sol)
+
+
+def find_zero_crossings(
+    f: Callable[[float], float],
+    t_arr: NumpyArray,
+    method: str = 'brentq',
+    fallback: bool = True,
+    **kwargs
+) -> list[float]:
+    """
+    Find zero crossings of a function f(t). If no zero crossings are found,
+    return the point where |f(t)| is minimal.
+
+    Parameters
+    ----------
+    f : Callable[[float], float]
+        Function f(t).
+    t_arr : NumpyArray
+        1D array of increasing t-values.
+    method : str, default='brentq'
+        Root finding method to use (default: 'brentq').
+    fallback : bool, default=True
+        If True, return t where |f(t)| is minimal if no zero crossing is found.
+    **kwargs :
+        Extra keyword arguments for root_scalar.
+
+    Returns
+    -------
+    list[float]
+        t-values where f(t) = 0, or [t_min] if no crossings and fallback is
+        True.
+    """
+    # Evaluate f(t) for each t in t_arr
+    f_arr = np.zeros_like(t_arr)
+    for i in range(len(t_arr)):
+        f_arr[i] = f(t_arr[i])
+
+    # Detect sign changes
+    sign_changes = np.sign(f_arr[1:]) != np.sign(f_arr[:-1])
+    crossing_indices = np.where(sign_changes)[0]
+
+    # Try to find actual roots in intervals where sign changes
+    roots = []
+    for i in crossing_indices:
+        t_low, t_high = t_arr[i], t_arr[i + 1]
+        try:
+            res = root_scalar(f, bracket=[t_low, t_high], method=method, **kwargs)
+            if res.converged:
+                roots.append(res.root)
+        except (ValueError, RuntimeError):
+            pass
+
+    # If no crossings were found: fallback
+    if not roots and fallback:
+        i = np.argmin(np.abs(f_arr))
+        t_guess = t_arr[i]
+
+        # Limit the search to a small bracket around t_guess
+        i_low = max(i - 1, 0)  # type: ignore
+        i_high = min(i + 1, len(t_arr) - 1)  # type: ignore
+        t_low, t_high = t_arr[i_low], t_arr[i_high]
+
+        res = minimize_scalar(lambda t: abs(f(t)), bounds=(t_low, t_high), method='bounded')
+        if res.success:
+            return [res.x]
+        else:
+            return [t_guess]
+
+    return roots

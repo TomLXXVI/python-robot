@@ -1,0 +1,13 @@
+.idea/
+__pycache__/
+.venv/
+venv/
+.pytest_cache/
+*.pyc
+.env
+/docs/
+/my_experiments/
+/tests/
+/src/python_robot.egg-info/
+*.zip
+.ipynb_checkpoints/
