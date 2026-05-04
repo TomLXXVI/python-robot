@@ -174,7 +174,7 @@ class KinematicChain(AbstractKinematicChain):
     @property
     def links(self) -> list[AbstractLink]:
         """
-        Returns the list of links in the chain.
+        Returns the list of links in the chain (with zero-based indexing).
         """
         return self._links
 
@@ -242,7 +242,7 @@ class KinematicChain(AbstractKinematicChain):
 
     def get_angle_units(self) -> tuple[AngleUnit, ...]:
         """
-        Returns the angle units of each links in the chain, which were set when
+        Returns the angle units of each link in the chain, which were set when
         instantiating these links.
         """
         return tuple([link.angle_unit for link in self])
@@ -251,7 +251,7 @@ class KinematicChain(AbstractKinematicChain):
         """
         Given a sequence of joint coordinates, ordered from base to tool,
         converts any joint angle in this sequence, which should be expressed in
-        radians, externally to degrees if the angle unit of the links (that is
+        radians, externally to degrees if the angle unit of the link (that is
         associated with this joint angle) is specified as degrees.
         """
         joint_coords_ = list(joint_coords)
@@ -267,7 +267,7 @@ class KinematicChain(AbstractKinematicChain):
         """
         Given a sequence of joint coordinates, ordered from base to tool,
         converts any joint angle in this sequence, which should be expressed in
-        degrees, internally to radians if the angle unit of the links (that is
+        degrees, internally to radians if the angle unit of the link (that is
         associated with this joint angle) is specified as degrees.
         """
         joint_coords_ = list(joint_coords)
@@ -289,9 +289,9 @@ class KinematicChain(AbstractKinematicChain):
 
     def pose(self, index: int) -> Frame:
         """
-        Returns the pose (a Frame object) of the given links in the chain. The
+        Returns the pose (a Frame object) of the given link in the chain. The
         pose describes the position and orientation of the frame of the given
-        links w.r.t. the base frame of the chain.
+        link w.r.t. the base frame of the chain.
 
         The pose will depend on the current configuration state of this
         KinematicChain object.
@@ -299,10 +299,10 @@ class KinematicChain(AbstractKinematicChain):
         Parameters
         ----------
         index: int
-            The index of the links in the chain.
-            Note that positive indices are *not* zero-based. So, the first links
+            The index of the link in the chain.
+            Note that positive indices are *not* zero-based. So, the first link
             in the chain has index 1 (instead of 0), and so on.
-            Negative indices however are kept Python-like. So, the last links in
+            Negative indices however are kept Python-like. So, the last link in
             the chain (i.e. the end-effector) has index -1, and so on.
 
         Returns
@@ -359,7 +359,7 @@ class KinematicChain(AbstractKinematicChain):
 
     def fwd_kin(self, joint_coords: Sequence[float] | None = None) -> Frame:
         """
-        Returns the pose of the end-effector (i.e. the links frame farthest from
+        Returns the pose of the end-effector (i.e. the link frame farthest from
         the base) w.r.t. the fixed base frame of the kinematic chain for the
         given sequence of joint coordinates.
 
@@ -394,7 +394,7 @@ class KinematicChain(AbstractKinematicChain):
         **kwargs
     ) -> NumpyArray:
         """
-        Given the desired pose of the end-effector (i.e. the links frame farthest
+        Given the desired pose of the end-effector (i.e. the link frame farthest
         from the base) w.r.t. the base frame of the kinematic chain, returns a
         (possible) solution for the joint coordinates using a numeric
         IK-solver .
@@ -419,7 +419,7 @@ class KinematicChain(AbstractKinematicChain):
             The joint coordinates that result in the desired end-effector pose.
             In case of joint coordinates that are angles, the unit of the angle
             corresponds with the angle unit that was assigned when instantiating
-            its respective links.
+            its respective link.
 
         Raises
         ------

@@ -5,11 +5,12 @@ from enum import StrEnum
 
 import numpy as np
 
-from ...base.types import NumpyArray
+from ...base.types import NumpyArray, AngleUnit
 from ...base import Frame
 from ...manipulator import SerialLinkManipulator
 from ...charts import LineChart
 from ...visualisation import WorldScene
+from ...utils import array_to_table
 from ..profiles.multi_point import MultiPointCubicPath, MultiLinearSegmentPath
 
 
@@ -41,7 +42,8 @@ class JointMotionScheme:
         dt_segments: Sequence[float],
         mp_type: MultiMotionProfileType = MultiMotionProfileType.CUBIC,
         blend_accels: float | Sequence[float] | None = None,
-        num_t_samples: int = 100
+        num_t_samples: int = 100,
+        ini_guess: Sequence[float] | None = None,
     ) -> None:
         # noinspection GrazieInspectionRunner
         """
@@ -68,11 +70,17 @@ class JointMotionScheme:
         num_t_samples: int, default = 100
             Number of time samples to be taken from the position profile of
             the motion paths of the joints in the manipulator.
+        ini_guess: Sequence[float] | None, optional
+            Initial joint coordinates for the inverse kinematics of the first
+            target frame. If None, the current joint coordinates of the
+            manipulator are used. Each following target frame uses the previous
+            inverse-kinematics solution as its initial guess.
         """
         self.manipulator = manipulator
         self.target_frames = target_frames
         self.mp_type = mp_type
         self.blend_accels = blend_accels
+        self.ini_guess = ini_guess
 
         self.n_segments = len(self.target_frames) - 1
         self.n_joints = len(self.manipulator)
@@ -85,8 +93,10 @@ class JointMotionScheme:
             )
         self.dt_segments = dt_segments
 
-        self._q_sets = self._map_to_joints(self.target_frames)
-        self._q_paths = self._time_scaling(self._q_sets)
+        self._tables = _JointMotionTables(self)
+
+        self._q_sets = self._map_to_joints(self.target_frames, self.ini_guess)
+        self._q_paths = self._motion_profiling(self._q_sets)
         self._t_arr, self._q_arr = self._time_sampling(self._q_paths, num_t_samples)
 
     @property
@@ -137,16 +147,45 @@ class JointMotionScheme:
         """
         return np.column_stack((self._t_arr, self._q_arr))
 
+    @property
+    def tables(self) -> _JointMotionTables:
+        return self._tables
+
     def to_cartesian_space(self) -> CartesianMotionScheme:
         return CartesianMotionScheme.from_joint_motion(self)
 
-    def plot_scheme(self) -> LineChart:
+    def plot_motion_paths(self) -> LineChart:
+        """
+        Plots the motion paths q(t) of the joints and returns the LineChart
+        object. Call show() on this object to see the plot.
+
+        Returns
+        -------
+        LineChart
+        """
+        def _to_degrees(i: int, q: NumpyArray) -> NumpyArray:
+            # convert joint angles to degrees if required
+            if self.manipulator.links[i].is_revolute and self._tables.angle_unit == "deg":
+                return np.rad2deg(q)
+            return q
+
+        target_times = np.concatenate(([0.0], np.cumsum(self.dt_segments)))
+
         chart = LineChart()
         for i in range(self.n_joints):
             chart.add_xy_data(
                 label=f"q{i+1}",
                 x1_values=self._t_arr,
-                y1_values=self._q_arr[:, i],
+                y1_values=_to_degrees(i, self._q_arr[:, i]),
+            )
+            chart.add_xy_data(
+                label=f"q{i+1}, targets",
+                x1_values=target_times,
+                y1_values=_to_degrees(i, self._q_sets[:, i]),
+                style_props={
+                    "marker": "o",
+                    "linestyle": "none",
+                },
             )
         chart.x1.add_title("time, s")
         chart.y1.add_title("joint coordinate")
@@ -160,9 +199,13 @@ class JointMotionScheme:
         chart.add_legend(columns=columns)
         return chart
 
-    def _map_to_joints(self, frames: Sequence[Frame]) -> NumpyArray:
+    def _map_to_joints(
+        self,
+        frames: Sequence[Frame],
+        ini_guess: Sequence[float] | None = None,
+    ) -> NumpyArray:
         """
-        Maps the end-effector frames from Cartesian space to "joint space",
+        Maps the end-effector frames from "Cartesian space" to "joint space",
         i.e., the poses of the end-effector frames (w.r.t. the fixed base frame
         of the manipulator) are translated to sets of corresponding joint angles
         by application of the inverse kinematics of the manipulator.
@@ -174,13 +217,20 @@ class JointMotionScheme:
             frames. The number of columns equals the number of joints of the
             manipulator.
         """
-        q_sets = np.array([self.manipulator.inv_kin(frame) for frame in frames])
-        return q_sets
+        q_sets = []
+        q_guess = ini_guess if ini_guess is not None else self.manipulator.joint_coords
 
-    def _time_scaling(self, q_sets: NumpyArray) -> list[MultiMotionProfile]:
+        for frame in frames:
+            q = self.manipulator.inv_kin(frame, ini_guess=q_guess)
+            q_sets.append(q)
+            q_guess = q
+
+        return np.array(q_sets)
+
+    def _motion_profiling(self, q_sets: NumpyArray) -> list[MultiMotionProfile]:
         """
         From the joint coordinate sets determined by inverse kinematics, creates
-        motion paths for each joint in the manipulator
+        motion paths for each joint in the manipulator.
 
         Returns
         -------
@@ -263,9 +313,12 @@ class CartesianMotionScheme:
         self._traj_frames = trajectory_frames
         self._target_frames = list(target_frames) if target_frames is not None else []
 
+        self._traj_viewer = _CartesianTrajectoryPlotter(self)
+        self._tables = _CartesianMotionTables(self)
+
     @classmethod
     def from_joint_motion(cls, jms: JointMotionScheme) -> CartesianMotionScheme:
-        frames = [jms.manipulator.fwd_kin(r[1:]) for r in jms.scheme]
+        frames = [jms.manipulator.fwd_kin(row[1:]) for row in jms.scheme]
         t_arr = jms.scheme[:, 0]
         return cls(t_arr, frames, jms.target_frames)
 
@@ -275,8 +328,16 @@ class CartesianMotionScheme:
             np.asarray(fr.origin, dtype=float)
             for fr in self._traj_frames]
         )
-        scheme = np.column_stack([self._t_arr, xyz_coords])
+        xyz_angles = np.array([
+            np.asarray(fr.orient_angles, dtype=float)
+            for fr in self._traj_frames]
+        )
+        scheme = np.column_stack([self._t_arr, xyz_coords, xyz_angles])
         return scheme
+
+    @property
+    def tables(self) -> _CartesianMotionTables:
+        return self._tables
 
     @property
     def trajectory_frames(self) -> list[Frame]:
@@ -322,6 +383,170 @@ class CartesianMotionScheme:
             np.asarray(frame.origin, dtype=float)
             for frame in self._target_frames
         ])
+
+    def plot_trajectory(
+        self,
+        show_points: bool = False,
+        show_path: bool = True,
+        show_frames: bool = False,
+        show_target_path: bool = True,
+        show_target_points: bool = False,
+        show_target_frames: bool = False,
+        point_step: int = 1,
+        frame_step: int = 10,
+        point_color: str = "black",
+        path_color: str = "orange",
+        target_point_color: str = "blue",
+        target_path_color: str = "blue",
+        point_size: float = 8.0,
+        target_point_size: float = 10.0,
+        path_width: float = 2.0,
+        target_path_width: float = 2.0,
+        frame_scale: float = 0.2,
+        target_frame_scale: float = 0.2,
+        **kwargs
+    ) -> None:
+        """
+        Plot the Cartesian end-effector trajectory in 3D space.
+
+        Parameters
+        ----------
+        show_points : bool, default=True
+            If True, draw sampled end-effector positions as point markers.
+        show_path : bool, default=True
+            If True, draw line segments between successive trajectory points.
+        show_frames : bool, default=False
+            If True, draw some sampled end-effector frames along the trajectory.
+        show_target_path : bool, default=True
+            If True, draw line segments between successive target points.
+        show_target_points : bool, default=True
+            If True, draw end-effector target positions as point markers.
+        show_target_frames : bool, default=True
+            If True, draw target end-effector frames along the trajectory.
+        point_step : int, default=1
+            Draw every `point_step`-th point.
+        frame_step : int, default=10
+            Draw every `frame_step`-th frame if `show_frames` is True.
+        point_color : str, default="black"
+            Color of the trajectory points.
+        path_color : str, default="orange"
+            Color of the trajectory path.
+        target_point_color : str, default="blue"
+            Color of the target points.
+        target_path_color : str, default="blue"
+            Color of the target path.
+        point_size : float, default=8.0
+            Size of the point markers.
+        target_point_size : float, default=14.0
+            Size of the target point markers.
+        path_width : float, default=3.0
+            Width of the trajectory path.
+        target_path_width : float, default=2.0
+            Width of the target path.
+        frame_scale : float, default=0.2
+            Scale of the optional end-effector frames.
+        target_frame_scale : float, default=0.25
+            Scale of the optional end-effector target frames.
+        **kwargs
+            Additional keyword arguments passed to WorldScene.
+
+        Returns
+        -------
+        None
+        """
+        self._traj_viewer.plot_trajectory(
+            show_points, show_path, show_frames, show_target_path,
+            show_target_points, show_target_frames, point_step,
+            frame_step, point_color, path_color, target_point_color,
+            target_path_color, point_size, target_point_size,
+            path_width, target_path_width, frame_scale,
+            target_frame_scale, **kwargs
+        )
+
+    async def plot_trajectory_async(
+        self,
+        show_points: bool = True,
+        show_path: bool = True,
+        show_frames: bool = False,
+        show_target_path: bool = True,
+        show_target_points: bool = True,
+        show_target_frames: bool = True,
+        point_step: int = 1,
+        frame_step: int = 10,
+        point_color: str = "black",
+        path_color: str = "orange",
+        target_point_color: str = "blue",
+        target_path_color: str = "blue",
+        point_size: float = 8.0,
+        target_point_size: float = 14.0,
+        path_width: float = 3.0,
+        target_path_width: float = 2.0,
+        frame_scale: float = 0.2,
+        target_frame_scale: float = 0.25,
+        **kwargs
+    ) -> None:
+        """
+        Plot the Cartesian end-effector trajectory asynchronously.
+
+        This is mainly useful in Jupyter notebooks.
+
+        Parameters
+        ----------
+        show_points : bool, default=True
+            If True, draw sampled end-effector positions as point markers.
+        show_path : bool, default=True
+            If True, draw line segments between successive trajectory points.
+        show_frames : bool, default=False
+            If True, draw some sampled end-effector frames along the trajectory.
+        show_target_path : bool, default=True
+            If True, draw line segments between successive target points.
+        show_target_points : bool, default=True
+            If True, draw end-effector target positions as point markers.
+        show_target_frames : bool, default=True
+            If True, draw target end-effector frames along the trajectory.
+        point_step : int, default=1
+            Draw every `point_step`-th point.
+        frame_step : int, default=10
+            Draw every `frame_step`-th frame if `show_frames` is True.
+        point_color : str, default="black"
+            Color of the trajectory points.
+        path_color : str, default="orange"
+            Color of the trajectory path.
+        target_point_color : str, default="blue"
+            Color of the target points.
+        target_path_color : str, default="blue"
+            Color of the target path.
+        point_size : float, default=8.0
+            Size of the point markers.
+        target_point_size : float, default=14.0
+            Size of the target point markers.
+        path_width : float, default=3.0
+            Width of the trajectory path.
+        target_path_width : float, default=2.0
+            Width of the target path.
+        frame_scale : float, default=0.2
+            Scale of the optional end-effector frames.
+        target_frame_scale : float, default=0.25
+            Scale of the optional end-effector target frames.
+        **kwargs
+            Additional keyword arguments passed to WorldScene.
+        """
+        await self._traj_viewer.plot_trajectory_async(
+            show_points, show_path, show_frames, show_target_path,
+            show_target_points, show_target_frames, point_step,
+            frame_step, point_color, path_color, target_point_color,
+            target_path_color, point_size, target_point_size,
+            path_width, target_path_width, frame_scale,
+            target_frame_scale, **kwargs
+        )
+
+
+class _CartesianTrajectoryPlotter:
+    """
+    Helper class of CartesianMotionScheme to plot a Cartesian trajectory.
+    """
+    def __init__(self, cms: CartesianMotionScheme) -> None:
+        self._cms = cms
 
     @staticmethod
     def _create_scene(**kwargs) -> WorldScene:
@@ -435,8 +660,8 @@ class CartesianMotionScheme:
 
         scene = self._create_scene(**kwargs)
 
-        points = self.trajectory_points
-        target_points = self.target_points if self._target_frames else np.empty((0, 3))
+        points = self._cms.trajectory_points
+        target_points = self._cms.target_points if self._cms._target_frames else np.empty((0, 3))
 
         # Original target path
         if show_target_path and len(target_points) >= 2:
@@ -459,7 +684,7 @@ class CartesianMotionScheme:
 
         # Original target frames
         if show_target_frames:
-            for i, frame in enumerate(self._target_frames):
+            for i, frame in enumerate(self._cms._target_frames):
                 scene.add_frame(
                     frame=frame,
                     scale=target_frame_scale,
@@ -489,7 +714,7 @@ class CartesianMotionScheme:
 
         # Optional sampled actual end-effector frames
         if show_frames:
-            for frame in self._traj_frames[::frame_step]:
+            for frame in self._cms._traj_frames[::frame_step]:
                 scene.add_frame(
                     frame=frame,
                     scale=frame_scale,
@@ -595,3 +820,80 @@ class CartesianMotionScheme:
             **kwargs,
         )
         await scene.show_async()
+
+
+class _JointMotionTables:
+    """
+    Helper class of JointMotionScheme.
+    """
+    def __init__(
+        self,
+        jms: JointMotionScheme,
+        angle_unit: str = "deg"
+    ) -> None:
+        self._jms = jms
+        self._angle_unit = angle_unit
+
+    @property
+    def angle_unit(self) -> str:
+        return self._angle_unit
+
+    @angle_unit.setter
+    def angle_unit(self, val: AngleUnit) -> None:
+        self._angle_unit = val
+
+    @property
+    def coordinates(self) -> str:
+        _coordinates = self._jms.coordinates.copy()
+        n_cols = _coordinates.shape[1]
+        links = self._jms.manipulator.links
+
+        headers = []
+        for i in range(n_cols):
+            if links[i].is_revolute and self._angle_unit == "deg":
+                col = np.rad2deg(_coordinates[:, i])
+                _coordinates[:, i] = col
+            headers.append(f"q{i+1}")
+
+        table = array_to_table(
+            _coordinates,
+            headers=headers,
+            index=True,
+            index_header="frame"
+        )
+        return table
+
+    @property
+    def scheme(self) -> str:
+        _scheme = self._jms.scheme.copy()
+        n_cols = _scheme.shape[1]
+        links = self._jms.manipulator.links
+
+        headers = ["time"]
+        for i in range(1, n_cols):
+            if links[i-1].is_revolute and self._angle_unit == "deg":
+                col = np.rad2deg(_scheme[:, i])
+                _scheme[:, i] = col
+            headers.append(f"q{i}")
+
+        table = array_to_table(
+            _scheme,
+            headers=headers,
+        )
+        return table
+
+
+class _CartesianMotionTables:
+
+    def __init__(
+        self,
+        cms: CartesianMotionScheme,
+    ) -> None:
+        self._cms = cms
+
+    @property
+    def scheme(self) -> str:
+        _scheme = self._cms.scheme.copy()
+        headers = ["time", "x", "y", "z", "alpha", "beta", "gamma"]
+        table = array_to_table(_scheme, headers=headers)
+        return table

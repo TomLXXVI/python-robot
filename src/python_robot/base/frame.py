@@ -49,7 +49,7 @@ class Frame:
             first angle is the rotation angle about the X-axis, the second angle
             about the Y-axis, and the third angle about the Z-axis. The sign of
             the angles is determined by the right-hand rule.
-        angle_unit : Literal["deg", "rad"], default = "deg"
+        angle_unit : Literal["deg", "rad"], default = "rad"
             Unit of the orientation angles.
         """
         self.origin = origin

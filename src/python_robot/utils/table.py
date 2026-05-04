@@ -82,7 +82,7 @@ def array_to_table(
 
     columns = [
         Column(str(header), fmt=fmt, colalign=colalign, headalign=headalign)
-        for header in headers  #type: ignore
+        for header in headers  # type: ignore
     ]
     if index:
         columns.insert(
@@ -100,4 +100,16 @@ def array_to_table(
             values = (i, *values)
         table.row(*values)
 
-    return str(table).rstrip()
+    return _dedent_table(str(table)).rstrip()
+
+def _dedent_table(table: str) -> str:
+    lines = table.splitlines()
+    if not lines:
+        return table
+
+    first_line = lines[0]
+    second_line = lines[1] if len(lines) > 1 else ""
+    if not first_line.startswith(" ") or second_line.startswith(" "):
+        return table
+
+    return "\n".join([first_line.lstrip(), *lines[1:]])

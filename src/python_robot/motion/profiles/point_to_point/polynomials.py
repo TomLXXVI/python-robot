@@ -100,9 +100,6 @@ class CubicPolynomial(Polynomial):
     Represents 1D position s as a function of time by a cubic polynomial:
         s(t) = c0 + c1 * t + c2 * t^2 + c3 * t^3.
     
-    Position s, velocity v, acceleration a and jerk j are the kinematic 
-    variables described the polynomial.
-    
     Velocity v is the first derivative of position:
         v(t) = c1 + (2 * c2) * t + (3 * c3) * t^2
 
@@ -184,10 +181,7 @@ class QuinticPolynomial(Polynomial):
     """
     Represents 1D position s as a function of time by a quintic polynomial:
         s(t) = c0 + c1 * t + c2 * t^2 + c3 * t^3 + c4 * t^4 + c5 * t^5.
-    
-    Position s, velocity v, acceleration a and jerk j are the kinematic 
-    variables described the polynomial.
-    
+
     Velocity v is the first derivative of position:
         v(t) = c1 + (2 * c2) * t + (3 * c3) * t^2 + (4 * c4) * t^3 + (5 * c5) * t^4
 

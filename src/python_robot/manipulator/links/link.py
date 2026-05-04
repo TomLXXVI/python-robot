@@ -61,7 +61,7 @@ class AbstractLink(ABC):
         """
         Base initializer for classes derived from AbstractLink.
         """
-        self.angle_unit: AngleUnit = self.defaults.angle_unit if angle_unit is None else angle_unit  # type: ignore
+        self.angle_unit: AngleUnit = self.defaults.angle_unit if angle_unit is None else angle_unit  #type: ignore
         self._variable: float | None = None
         self.name: str = ""
         self.dynamics = dynamics
@@ -76,7 +76,7 @@ class AbstractLink(ABC):
     def variable(self, v: float) -> None:
         ...
 
-    def isconfigured(self) -> bool:
+    def is_configured(self) -> bool:
         """
         Returns True if the links is fully configured (i.e., the joint variable
         of the links is set), False otherwise.
@@ -98,7 +98,7 @@ class AbstractLink(ABC):
         -------
         Frame
         """
-        if self.isconfigured():
+        if self.is_configured():
             return self._get_frame()
         raise ValueError("links is not configured.")
 

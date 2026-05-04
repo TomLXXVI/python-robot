@@ -5,6 +5,7 @@ from pathlib import Path
 import time
 
 import numpy as np
+import pyvista as pv
 from spatialmath import SE3, SO3
 from spatialmath.base.types import ArrayLike3
 
@@ -241,7 +242,6 @@ class FrameAnimator:
         )
 
 
-
 class KinematicChainAnimator(FrameAnimator):
     """
     Animate a kinematic chain in an existing world scene.
@@ -265,6 +265,37 @@ class KinematicChainAnimator(FrameAnimator):
         origins = [np.zeros(3)] + [np.asarray(frame.origin, dtype=float) for frame in frames]
         return list(zip(origins[:-1], origins[1:]))
 
+    @classmethod
+    def _get_end_effector_position(cls, chain: KinematicChain) -> np.ndarray:
+        """
+        Return the current end-effector position of the chain.
+        """
+        return np.asarray(cls._get_link_frames(chain)[-1].origin, dtype=float).reshape(3)
+
+    @staticmethod
+    def _make_path_mesh(points: list[np.ndarray]) -> pv.PolyData:
+        """
+        Create a polyline mesh through the given path points.
+        """
+        path = np.asarray(points, dtype=float).reshape((-1, 3))
+        mesh = pv.PolyData(path)
+
+        if len(path) > 1:
+            mesh.lines = np.concatenate(([len(path)], np.arange(len(path))))
+
+        return mesh
+
+    @staticmethod
+    def _update_path_mesh(mesh: pv.PolyData, points: list[np.ndarray]) -> None:
+        """
+        Update a polyline mesh in place.
+        """
+        path = np.asarray(points, dtype=float).reshape((-1, 3))
+        mesh.points = path
+
+        if len(path) > 1:
+            mesh.lines = np.concatenate(([len(path)], np.arange(len(path))))
+
     def animate_chain_sequence(
         self,
         chain: KinematicChain,
@@ -282,6 +313,9 @@ class KinematicChainAnimator(FrameAnimator):
         show: bool = True,
         interactive_update: bool = True,
         close_plotter: bool = False,
+        show_ee_path: bool = False,
+        ee_path_color: str = "orange",
+        ee_path_line_width: float = 3.0,
     ) -> None:
         """
         Animate a sequence of joint configurations for a kinematic chain.
@@ -316,6 +350,12 @@ class KinematicChainAnimator(FrameAnimator):
             Passed to ``plotter.show(...)``.
         close_plotter : bool, default=False
             Close plotter at end if no output file is written.
+        show_ee_path : bool, default=False
+            If True, draw the path traced by the end-effector.
+        ee_path_color : str, default="orange"
+            Color of the end-effector path.
+        ee_path_line_width : float, default=3.0
+            Line width of the end-effector path.
         """
         sampled_joint_sets = list(joint_coord_sets[::step])
         if not sampled_joint_sets:
@@ -363,6 +403,17 @@ class KinematicChainAnimator(FrameAnimator):
                 )
                 link_artists.append(artist)
 
+            ee_path_points: list[np.ndarray] = []
+            ee_path_mesh: pv.PolyData | None = None
+            if show_ee_path:
+                ee_path_points.append(self._get_end_effector_position(chain))
+                ee_path_mesh = self._make_path_mesh(ee_path_points)
+                self.scene.plotter.add_mesh(
+                    ee_path_mesh,
+                    color=ee_path_color,
+                    line_width=ee_path_line_width,
+                )
+
             if show:
                 self.scene.plotter.show(
                     auto_close=False,
@@ -396,6 +447,10 @@ class KinematicChainAnimator(FrameAnimator):
                         p2=p2,
                         render=False,
                     )
+
+                if ee_path_mesh is not None:
+                    ee_path_points.append(self._get_end_effector_position(chain))
+                    self._update_path_mesh(ee_path_mesh, ee_path_points)
 
                 self.scene.plotter.render()
 

@@ -11,3 +11,4 @@ venv/
 /src/python_robot.egg-info/
 *.zip
 .ipynb_checkpoints/
+/AGENTS.md

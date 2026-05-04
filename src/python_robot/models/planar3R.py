@@ -184,12 +184,12 @@ class Planar3R(SerialLinkManipulator):
 
     def plot(self, **kwargs) -> None:
         """
-        Plots the current joint-and-links configuration of the kinematic chain
-        in 3D-space.
+        Plots the current joint configuration of the kinematic chain in
+        3D-space.
 
         Parameters
         ----------
-        kwargs: dict
+        **kwargs:
             Additional keyword arguments for 3D scene configuration (for details
             see docstring of class WorldScene in visualisation.scene.py).
 
@@ -228,6 +228,9 @@ class Planar3R(SerialLinkManipulator):
         gif_path: str | None = None,
         mp4_path: str | None = None,
         show: bool = True,
+        show_ee_path: bool = False,
+        ee_path_color: str = "orange",
+        ee_path_line_width: float = 3.0,
         **kwargs
     ) -> None:
         """
@@ -237,7 +240,14 @@ class Planar3R(SerialLinkManipulator):
         `manipulator.visualisation.KinematicChainViewer`.
         """
         self._viewer.animate(
-            joint_angle_sets, fps, step,
-            gif_path, mp4_path, show,
+            joint_coord_sets=joint_angle_sets,
+            fps=fps,
+            step=step,
+            gif_path=gif_path,
+            mp4_path=mp4_path,
+            show=show,
+            show_ee_path=show_ee_path,
+            ee_path_color=ee_path_color,
+            ee_path_line_width=ee_path_line_width,
             **kwargs
         )

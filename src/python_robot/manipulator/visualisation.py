@@ -60,6 +60,12 @@ class KinematicChainViewer:
         Plots the current joint-and-links configuration of the kinematic chain in
         3D-space.
 
+        Parameters
+        ----------
+        **kwargs
+            Additional keyword arguments for configuration of the scene (see
+            docstring of class WorldScene in scene.py).
+
         Returns
         -------
         None
@@ -76,6 +82,12 @@ class KinematicChainViewer:
         Jupyter notebooks. (When calling this function, you need keyword await
         in front of the method call.)
 
+        Parameters
+        ----------
+        **kwargs
+            Additional keyword arguments for configuration of the scene (see
+            docstring of class WorldScene in scene.py).
+
         Returns
         -------
         None
@@ -91,6 +103,9 @@ class KinematicChainViewer:
         gif_path: str | None = None,
         mp4_path: str | None = None,
         show: bool = True,
+        show_ee_path: bool = False,
+        ee_path_color: str = "orange",
+        ee_path_line_width: float = 3.0,
         **kwargs
     ) -> None:
         """
@@ -112,6 +127,13 @@ class KinematicChainViewer:
             Optional output file.
         show : bool, default=True
             Whether to show the render window.
+        show_ee_path : bool, default=False
+            If True, draw the path traced by the end-effector during the
+            animation.
+        ee_path_color : str, default="orange"
+            Color of the end-effector path.
+        ee_path_line_width : float, default=3.0
+            Line width of the end-effector path.
         **kwargs
             Additional keyword arguments for configuration of the scene (see
             docstring of class WorldScene in scene.py).
@@ -129,5 +151,8 @@ class KinematicChainViewer:
             step=step,
             gif_path=gif_path,
             mp4_path=mp4_path,
-            show=show
+            show=show,
+            show_ee_path=show_ee_path,
+            ee_path_color=ee_path_color,
+            ee_path_line_width=ee_path_line_width,
         )
