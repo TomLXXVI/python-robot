@@ -4,10 +4,10 @@ Point-to-point motion of a single rigid body.
 from dataclasses import dataclass, field, asdict
 from abc import ABC
 
-from ..base.types import NumpyArray
-from ..base import Frame
-from .profiles.point_to_point._profile_abc import MotionProfile
-from .profiles.point_to_point import (
+from ...base.types import NumpyArray
+from ...base import Frame
+from ..profiles_1D.point_to_point import MotionProfile
+from ..profiles_1D.point_to_point import (
     TriPhaseMotionProfile,
     PolyMotionProfile,
     TrapezoidalProfile,
@@ -21,7 +21,7 @@ __all__ = [
     "SCurved",
     "Cubic",
     "Quintic",
-    "CartesianMotion"
+    "CartesianStraightLineMotion"
 ]
 
 
@@ -119,7 +119,7 @@ class Quintic(PolyMPParams):
 
 
 @dataclass
-class CartesianMotion:
+class CartesianStraightLineMotion:
     """
     Class for finding a smooth straight-line path between two 3D poses of a 
     frame which involves a change in position as well as in orientation.
@@ -212,5 +212,3 @@ class CartesianMotion:
         of the straight-line path.
         """
         return self._mp
-
-

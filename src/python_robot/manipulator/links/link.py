@@ -57,14 +57,45 @@ class AbstractLink(ABC):
         self,
         angle_unit: AngleUnit | None = None,
         dynamics: LinkDynamicParams | None = None,
+        q_lim: Sequence[float] | NumpyArray | None = None,
     ) -> None:
         """
         Base initializer for classes derived from AbstractLink.
         """
         self.angle_unit: AngleUnit = self.defaults.angle_unit if angle_unit is None else angle_unit  #type: ignore
         self._variable: float | None = None
+        self._q_lim = self._set_q_lim(q_lim)
         self.name: str = ""
         self.dynamics = dynamics
+
+    def _set_q_lim(self, q_lim: Sequence[float] | NumpyArray | None) -> NumpyArray | None:
+        if q_lim is None:
+            return None
+
+        limits = np.asarray(q_lim, dtype=float)
+        if limits.shape != (2,):
+            raise ValueError("q_lim must contain exactly two values: lower and upper joint limit.")
+
+        if self.is_revolute and self.angle_unit == "deg":
+            return np.deg2rad(limits)
+        return limits
+
+    @property
+    def q_lim(self) -> NumpyArray | None:
+        if self._q_lim is None:
+            return None
+        if self.is_revolute and self.angle_unit == "deg":
+            return np.rad2deg(self._q_lim)
+        return self._q_lim.copy()
+
+    @property
+    def q_lim_internal(self) -> NumpyArray | None:
+        if self._q_lim is None:
+            return None
+        return self._q_lim.copy()
+
+    def _rtb_q_lim_kwargs(self) -> dict[str, NumpyArray]:
+        return {} if self._q_lim is None else {"qlim": self._q_lim}
 
     @property
     @abstractmethod

@@ -3,17 +3,19 @@ Standard Denavit-Hartenberg notation.
 
 Link frames are placed at the far (distal) end of each link.
 """
+from typing import Sequence
+
 from roboticstoolbox import RevoluteDH, PrismaticDH
 
-from python_robot.base.types import AngleUnit
+from python_robot.base.types import AngleUnit, NumpyArray
 
-from .link import RevoluteAbstractDHLink, PrismaticAbstractDHLink, LinkDynamicParams
+from .link import AbstractRevoluteDHLink, AbstractPrismaticDHLink, LinkDynamicParams
 
 
 __all__ = ["StandardRevoluteDHLink", "StandardPrismaticDHLink", "Standard"]
 
 
-class StandardRevoluteDHLink(RevoluteAbstractDHLink):
+class StandardRevoluteDHLink(AbstractRevoluteDHLink):
 
     def __init__(
         self,
@@ -21,7 +23,8 @@ class StandardRevoluteDHLink(RevoluteAbstractDHLink):
         twist: float,
         offset: float,
         angle_unit: AngleUnit | None = None,
-        dynamics: LinkDynamicParams | None = None
+        dynamics: LinkDynamicParams | None = None,
+        q_lim: Sequence[float] | NumpyArray | None = None,
     ) -> None:
         """
         Creates a revolute link.
@@ -43,13 +46,18 @@ class StandardRevoluteDHLink(RevoluteAbstractDHLink):
             Note that internally all angles will be converted to radians.
         dynamics: LinkDynamics, optional
             Adds dynamic properties to this link.
+        q_lim: Sequence[float] | NumpyArray | None, optional
+            Mechanical joint limits. Revolute limits use angle_unit and are
+            converted to radians internally.
         """
-        super().__init__(length, twist, offset, angle_unit, dynamics)
-        self._rtb_link: RevoluteDH = RevoluteDH(self._offset, self.length, self.twist)  #type: ignore
+        super().__init__(length, twist, offset, angle_unit, dynamics, q_lim)
+        self._rtb_link: RevoluteDH = RevoluteDH(
+            self._offset, self.length, self.twist, **self._rtb_q_lim_kwargs()
+        )  #type: ignore
         self._apply_dynamics_to_rtb_link(self._rtb_link)
 
 
-class StandardPrismaticDHLink(PrismaticAbstractDHLink):
+class StandardPrismaticDHLink(AbstractPrismaticDHLink):
 
     def __init__(
         self,
@@ -57,7 +65,8 @@ class StandardPrismaticDHLink(PrismaticAbstractDHLink):
         twist: float,
         angle: float,
         angle_unit: AngleUnit | None = None,
-        dynamics: LinkDynamicParams | None = None
+        dynamics: LinkDynamicParams | None = None,
+        q_lim: Sequence[float] | NumpyArray | None = None,
     ) -> None:
         """
         Creates a prismatic link.
@@ -79,9 +88,13 @@ class StandardPrismaticDHLink(PrismaticAbstractDHLink):
             Note that internally all angles will be converted to radians.
         dynamics: LinkDynamics, optional
             Adds dynamic properties to this link.
+        q_lim: Sequence[float] | NumpyArray | None, optional
+            Mechanical joint limits.
         """
-        super().__init__(length, twist, angle, angle_unit, dynamics)
-        self._rtb_link: PrismaticDH = PrismaticDH(self._angle, self.length, self.twist)  #type: ignore
+        super().__init__(length, twist, angle, angle_unit, dynamics, q_lim)
+        self._rtb_link: PrismaticDH = PrismaticDH(
+            self._angle, self.length, self.twist, **self._rtb_q_lim_kwargs()
+        )  #type: ignore
         self._apply_dynamics_to_rtb_link(self._rtb_link)
 
 

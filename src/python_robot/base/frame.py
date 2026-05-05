@@ -60,6 +60,17 @@ class Frame:
         self._orient_mat = SO3.RPY(*self.orient_angles, unit=self.angle_unit, order="zyx")
         self._matrix = SE3.Rt(self._orient_mat, self.origin)
 
+    def __str__(self) -> str:
+        return (
+            f"Frame("
+            f"[x: {float(self.origin[0]):.4g}, "
+            f"y: {float(self.origin[1]):.4g}, "
+            f"z: {float(self.origin[2]):.4g}], "
+            f"[alpha: {float(self.orient_angles[0]):.4g} {self.angle_unit}, "
+            f"beta: {float(self.orient_angles[1]):.4g} {self.angle_unit}, "
+            f"gamma: {float(self.orient_angles[2]):.4g} {self.angle_unit}])"
+        )
+
     @property
     def origin_mat(self) -> SE3:
         """

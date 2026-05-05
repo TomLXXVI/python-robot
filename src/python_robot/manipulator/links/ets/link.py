@@ -3,7 +3,7 @@ ETS links.
 
 Link description is done with an Elementary Transform Sequence (ETS).
 """
-from typing import Literal
+from typing import Literal, Sequence
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -11,7 +11,7 @@ import numpy as np
 from roboticstoolbox import ET, ETS
 from roboticstoolbox import Link as RTBLink
 
-from python_robot.base.types import AngleUnit
+from python_robot.base.types import AngleUnit, NumpyArray
 from python_robot.base import Frame
 
 from ..link import AbstractLink, LinkDynamicParams
@@ -37,8 +37,9 @@ class AbstractETSLink(AbstractLink, ABC):
         theta_z: float | None = None,
         angle_unit: AngleUnit | None = None,
         dynamics: LinkDynamicParams | None = None,
+        q_lim: Sequence[float] | NumpyArray | None = None,
     ) -> None:
-        super().__init__(angle_unit, dynamics)
+        super().__init__(angle_unit, dynamics, q_lim)
 
         self.joint_axis = joint_axis
         self.delta_x = delta_x
@@ -49,7 +50,7 @@ class AbstractETSLink(AbstractLink, ABC):
         self.theta_z = self._set_theta(theta_z, angle_unit)
 
         self.et_seq = self._get_et_sequence()
-        self._rtb_link = RTBLink(self.ets)
+        self._rtb_link = RTBLink(self.ets, **self._rtb_q_lim_kwargs())
         self._apply_dynamics_to_rtb_link(self._rtb_link)
 
     def _set_theta(self, theta: float | None, angle_unit: AngleUnit | None) -> float | None:
@@ -89,7 +90,7 @@ class AbstractETSLink(AbstractLink, ABC):
         if self._rtb_link is not None and self._variable is not None:
             SE3_mat = self._rtb_link.A(self._variable)
             return Frame.from_matrix(SE3_mat, angle_unit="rad")
-        raise ValueError("links is not configured.")
+        raise ValueError("link is not configured.")
 
     @property
     def link_length(self) -> float:
@@ -115,9 +116,10 @@ class RevoluteETSLink(AbstractETSLink):
         theta_z: float | None = None,
         angle_unit: AngleUnit | None = None,
         dynamics: LinkDynamicParams | None = None,
+        q_lim: Sequence[float] | NumpyArray | None = None,
     ) -> None:
         """
-        Configures a revolute ETS links. The joint variable of the links is a
+        Configures a revolute ETS link. The joint variable of the link is a
         rotation angle.
 
         Parameters
@@ -146,14 +148,18 @@ class RevoluteETSLink(AbstractETSLink):
             defaults.angle_unit).
             Note that internally all angles will be converted to radians.
         dynamics: LinkDynamics | None, default=None
-            Adds dynamic links properties to the links object.
+            Adds dynamic link properties to the link object.
+        q_lim: Sequence[float] | NumpyArray | None, default=None
+            Mechanical joint limits. Revolute limits use angle_unit and are
+            converted to radians internally.
         """
         super().__init__(
             joint_axis,
             delta_x, delta_y, delta_z,
             theta_x, theta_y, theta_z,
             angle_unit,
-            dynamics
+            dynamics,
+            q_lim
         )
         self._angle: float | None = None
 
@@ -193,7 +199,7 @@ class RevoluteETSLink(AbstractETSLink):
     @property
     def angle(self) -> float | None:
         """
-        Returns the rotation angle of the links.
+        Returns the rotation angle of the link.
         If self.angle_unit == "deg", the angle is returned in degrees.
         """
         if self._angle is not None:
@@ -206,7 +212,7 @@ class RevoluteETSLink(AbstractETSLink):
     @angle.setter
     def angle(self, v: float) -> None:
         """
-        Sets the rotation angle of the links.
+        Sets the rotation angle of the link.
         If self.angle_unit == "deg", the angle must be set in degrees.
         """
         self._angle = v if self.angle_unit == "rad" else float(np.deg2rad(v))
@@ -242,9 +248,10 @@ class PrismaticETSLink(AbstractETSLink):
         theta_z: float | None = None,
         angle_unit: AngleUnit | None = None,
         dynamics: LinkDynamicParams | None = None,
+        q_lim: Sequence[float] | NumpyArray | None = None,
     ) -> None:
         """
-        Configures a prismatic ETS links. The joint angle of the links is a
+        Configures a prismatic ETS link. The joint angle of the link is a
         linear offset.
 
         Parameters
@@ -274,14 +281,17 @@ class PrismaticETSLink(AbstractETSLink):
             defaults.angle_unit).
             Note that internally all angles will be converted to radians.
         dynamics: LinkDynamics | None, default=None
-            Adds dynamic links properties to the links object.
+            Adds dynamic link properties to the link object.
+        q_lim: Sequence[float] | NumpyArray | None, default=None
+            Mechanical joint limits.
         """
         super().__init__(
             joint_axis,
             delta_x, delta_y, delta_z,
             theta_x, theta_y, theta_z,
             angle_unit,
-            dynamics
+            dynamics,
+            q_lim
         )
         self._offset: float | None = None
 
@@ -320,12 +330,12 @@ class PrismaticETSLink(AbstractETSLink):
 
     @property
     def offset(self) -> float | None:
-        """Returns the linear offset of the links."""
+        """Returns the linear offset of the link."""
         return self._offset
 
     @offset.setter
     def offset(self, v: float) -> None:
-        """Sets the linear offset of the links."""
+        """Sets the linear offset of the link."""
         self._offset = v
         self._variable = self._offset
 

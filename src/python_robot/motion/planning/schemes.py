@@ -1,51 +1,72 @@
 from __future__ import annotations
 from typing import Sequence
 
-from enum import StrEnum
-
 import numpy as np
 
 from ...base.types import NumpyArray, AngleUnit
 from ...base import Frame
-from ...manipulator import SerialLinkManipulator
+from ...manipulator import SerialLinkManipulator, ConfigurationError
 from ...charts import LineChart
 from ...visualisation import WorldScene
 from ...utils import array_to_table
-from ..profiles.multi_point import MultiPointCubicPath, MultiLinearSegmentPath
-
+from .joint_multi import JointSpaceMotion, MultiPointMotionProfile, MultiPointMotionProfileType
+from .cartesian_multi import CartesianMultiStraightLineMotion
 
 __all__ = [
-    "MultiMotionProfileType",
-    "JointMotionScheme",
-    "CartesianMotionScheme"
+    "JointSpaceScheme",
+    "CartesianSpaceScheme"
 ]
 
 
-MultiMotionProfile = MultiPointCubicPath | MultiLinearSegmentPath
-
-
-class MultiMotionProfileType(StrEnum):
-    CUBIC = "cubic"
-    LINEAR = "linear"
-
-
-class JointMotionScheme:
+class JointSpaceScheme:
     """
     Given a sequence of end-effector frames (positions and orientations) in
-    Cartesian space, determine the motion paths of the joints of the
+    Cartesian space, determines the motion paths of the joints of the
     manipulator.
     """
     def __init__(
         self,
+        t_arr: NumpyArray,
+        q_arr: NumpyArray,
+        qd_arr: NumpyArray,
+        qdd_arr: NumpyArray,
+        *,
         target_frames: Sequence[Frame],
-        manipulator: SerialLinkManipulator,
         dt_segments: Sequence[float],
-        mp_type: MultiMotionProfileType = MultiMotionProfileType.CUBIC,
+        manipulator: SerialLinkManipulator,
+        q_sets: NumpyArray,
+        motion_paths: Sequence[MultiPointMotionProfile],
+        angle_unit: AngleUnit = "deg",
+    ) -> None:
+        self._t_arr = t_arr
+        self._q_arr = q_arr
+        self._qd_arr = qd_arr
+        self._qdd_arr = qdd_arr
+
+        self.target_frames = target_frames
+        self.dt_segments = dt_segments
+        self.manipulator = manipulator
+        self._q_sets = q_sets
+        self._motion_paths = motion_paths
+
+        self.n_joints = len(self.manipulator)
+        self.n_segments = len(self.dt_segments)
+        
+        self._tables = _JointMotionTables(self, angle_unit)
+
+    @classmethod
+    def create(
+        cls,
+        target_frames: Sequence[Frame],
+        dt_segments: Sequence[float],
+        manipulator: SerialLinkManipulator,
+        *,
+        mp_type: MultiPointMotionProfileType = MultiPointMotionProfileType.CUBIC,
         blend_accels: float | Sequence[float] | None = None,
         num_t_samples: int = 100,
         ini_guess: Sequence[float] | None = None,
-    ) -> None:
-        # noinspection GrazieInspectionRunner
+        angle_unit: AngleUnit = "deg",
+    ) -> JointSpaceScheme:
         """
         Creates a JointSpaceScheme object.
 
@@ -54,12 +75,12 @@ class JointMotionScheme:
         target_frames: Sequence[Frame]
             List of end-effector frames (positions and orientations) in
             Cartesian space.
-        manipulator: SerialLinkManipulator
-            Manipulator for which a joint-space scheme is to be created.
         dt_segments: Sequence[float]
             List with the required travel times of each segment between two
             successive frames.
-        mp_type: MotionProfileType, default = MotionProfileType.CUBIC
+        manipulator: SerialLinkManipulator
+            Manipulator for which a joint-space scheme is to be created.
+        mp_type: MultiPointMotionProfileType, default = MultiPointMotionProfileType.CUBIC
             Indicates the type of multipoint motion profile to use for
             calculating the motion paths of each joint in the manipulator.
         blend_accels: float | Sequence[float] | None, optional
@@ -75,35 +96,50 @@ class JointMotionScheme:
             target frame. If None, the current joint coordinates of the
             manipulator are used. Each following target frame uses the previous
             inverse-kinematics solution as its initial guess.
+        angle_unit: AngleUnit, default = "deg"
+            Angle unit to be used in the tables.
         """
-        self.manipulator = manipulator
-        self.target_frames = target_frames
-        self.mp_type = mp_type
-        self.blend_accels = blend_accels
-        self.ini_guess = ini_guess
+        jm = JointSpaceMotion(
+            target_frames, dt_segments, manipulator,
+            mp_type, blend_accels, num_t_samples,
+            ini_guess
+        )
+        t_arr, q_arr, qd_arr, qdd_arr = jm.motion_samples
+        q_sets = jm.target_coordinates
+        motion_paths = jm.motion_profiles
+        return cls(
+            t_arr, q_arr, qd_arr, qdd_arr,
+            target_frames=target_frames,
+            dt_segments=dt_segments,
+            manipulator=manipulator,
+            q_sets=q_sets,
+            motion_paths=motion_paths,
+            angle_unit=angle_unit,
+        )
 
-        self.n_segments = len(self.target_frames) - 1
-        self.n_joints = len(self.manipulator)
+    def to_cartesian_space(self) -> CartesianSpaceScheme:
+        """
+        Converts the joint-space scheme to Cartesian space.
+        """
+        return CartesianSpaceScheme.from_joint_space(self)
 
-        if self.n_segments != len(dt_segments):
-            raise ValueError(
-                f"The number of segment travel times ({len(dt_segments)}) is "
-                f"not equal to the number of segments in the trajectory "
-                f"({self.n_segments})."
-            )
-        self.dt_segments = dt_segments
-
-        self._tables = _JointMotionTables(self)
-
-        self._q_sets = self._map_to_joints(self.target_frames, self.ini_guess)
-        self._q_paths = self._motion_profiling(self._q_sets)
-        self._t_arr, self._q_arr = self._time_sampling(self._q_paths, num_t_samples)
+    @classmethod
+    def from_cartesian_space(
+        cls,
+        css: CartesianSpaceScheme,
+        manipulator: SerialLinkManipulator,
+        ini_guess: Sequence[float] | None = None,
+    ) -> JointSpaceScheme:
+        """
+        Converts the Cartesian-space scheme to joint space.
+        """
+        return css.to_joint_space(manipulator, ini_guess)
 
     @property
-    def coordinates(self) -> NumpyArray:
+    def target_coordinates(self) -> NumpyArray:
         """
         Returns the joint coordinates (joint positions) of the manipulator that
-        correspond with the sequence of end-effector frames in Cartesian space.
+        correspond with the target end-effector frames in Cartesian space.
 
         Returns
         -------
@@ -115,20 +151,31 @@ class JointMotionScheme:
         return self._q_sets
 
     @property
-    def paths(self) -> list[MultiMotionProfile]:
+    def motion_profiles(self) -> Sequence[MultiPointMotionProfile]:
         """
         Returns the motion paths/motion profiles of the joints of the
         manipulator.
 
         Returns
         -------
-        list[MultiMotionProfile]
+        Sequence[MultiPointMotionProfile]
             Either a list of MultiPointCubicPath objects or a list of
             MultiLinearSegmentPath objects, depending on the type of motion
             profile selected. The order corresponds with the order of the
             joints in the manipulator, from base to tool-end.
         """
-        return self._q_paths
+        return self._motion_paths
+
+    @property
+    def has_motion_profiles(self) -> bool:
+        """
+        Returns True if this scheme has analytic joint motion profiles.
+
+        Schemes created directly in joint space have analytic per-joint motion
+        profiles. Schemes converted from Cartesian space only have sampled
+        joint positions, velocities, and accelerations.
+        """
+        return len(self._motion_paths) > 0
 
     @property
     def scheme(self) -> NumpyArray:
@@ -145,18 +192,59 @@ class JointMotionScheme:
             each joint, starting at the joint closest to the base and proceeding
             to the joint closest to the tool-end in the manipulator.
         """
-        return np.column_stack((self._t_arr, self._q_arr))
+        return np.column_stack((self._t_arr, self._q_arr, self._qd_arr, self._qdd_arr))
 
     @property
     def tables(self) -> _JointMotionTables:
         return self._tables
 
-    def to_cartesian_space(self) -> CartesianMotionScheme:
-        return CartesianMotionScheme.from_joint_motion(self)
+    @property
+    def time_samples(self) -> NumpyArray:
+        """Returns the array of sampled time moments."""
+        return self._t_arr
 
-    def plot_motion_paths(self) -> LineChart:
+    @property
+    def paths(self) -> NumpyArray:
         """
-        Plots the motion paths q(t) of the joints and returns the LineChart
+        Returns the array of sampled joint positions q.
+
+        The number of rows is equal to the number time samples. The number of
+        columns is equal to the number of joints in the manipulator.
+        """
+        return self._q_arr
+
+    @property
+    def velocities(self) -> NumpyArray:
+        """
+        Returns the array of sampled joint velocities (qd).
+
+        The number of rows is equal to the number time samples. The number of
+        columns is equal to the number of joints in the manipulator.
+        """
+        return self._qd_arr
+
+    @property
+    def accelerations(self) -> NumpyArray:
+        """
+        Returns the array of sampled joint accelerations (qdd).
+
+        The number of rows is equal to the number time samples. The number of
+        columns is equal to the number of joints in the manipulator.
+        """
+        return self._qdd_arr
+
+    def dynamics(self) -> NumpyArray:
+        if self.manipulator.has_dynamics():
+            tau_arr = np.array([
+                self.manipulator.inv_dyn(q, qd, qdd)
+                for q, qd, qdd in zip(self._q_arr, self._qd_arr, self._qdd_arr)
+            ])
+            return np.column_stack((self._t_arr, tau_arr))
+        raise ConfigurationError("The manipulator's dynamics is not defined.")
+
+    def plot_paths(self) -> LineChart:
+        """
+        Plots the position paths q(t) of the joints and returns the LineChart
         object. Call show() on this object to see the plot.
 
         Returns
@@ -172,6 +260,7 @@ class JointMotionScheme:
         target_times = np.concatenate(([0.0], np.cumsum(self.dt_segments)))
 
         chart = LineChart()
+
         for i in range(self.n_joints):
             chart.add_xy_data(
                 label=f"q{i+1}",
@@ -187,6 +276,7 @@ class JointMotionScheme:
                     "linestyle": "none",
                 },
             )
+
         chart.x1.add_title("time, s")
         chart.y1.add_title("joint coordinate")
         columns = 1
@@ -199,128 +289,241 @@ class JointMotionScheme:
         chart.add_legend(columns=columns)
         return chart
 
-    def _map_to_joints(
-        self,
-        frames: Sequence[Frame],
-        ini_guess: Sequence[float] | None = None,
-    ) -> NumpyArray:
+    def plot_velocities(self) -> LineChart:
         """
-        Maps the end-effector frames from "Cartesian space" to "joint space",
-        i.e., the poses of the end-effector frames (w.r.t. the fixed base frame
-        of the manipulator) are translated to sets of corresponding joint angles
-        by application of the inverse kinematics of the manipulator.
+        Plots the velocity paths qd(t) of the joints and returns the LineChart
+        object. Call show() on this object to see the plot.
 
         Returns
         -------
-        q_sets: NumpyArray
-            2D-array: The number of rows of the array is equal to the number of
-            frames. The number of columns equals the number of joints of the
-            manipulator.
+        LineChart
         """
-        q_sets = []
-        q_guess = ini_guess if ini_guess is not None else self.manipulator.joint_coords
+        if self.has_motion_profiles:
+            target_times = np.concatenate(([0.0], np.cumsum(self.dt_segments)))
+            target_qd_arr = np.array([
+                [mp.velocity(t) for mp in self._motion_paths]
+                for t in target_times
+            ])
 
-        for frame in frames:
-            q = self.manipulator.inv_kin(frame, ini_guess=q_guess)
-            q_sets.append(q)
-            q_guess = q
-
-        return np.array(q_sets)
-
-    def _motion_profiling(self, q_sets: NumpyArray) -> list[MultiMotionProfile]:
-        """
-        From the joint coordinate sets determined by inverse kinematics, creates
-        motion paths for each joint in the manipulator.
-
-        Returns
-        -------
-        list[MotionProfile]
-            Either a list of MultiPointCubicPath objects or a list of
-            MultiLinearSegmentPath objects, depending on the type of motion
-            profile selected.
-        """
-        if self.mp_type == MultiMotionProfileType.CUBIC:
-            q_paths = [
-                MultiPointCubicPath(
-                    path_points=q_sets[:, i],
-                    dt_segments=self.dt_segments,
-                    v_start=0.0,
-                    v_end=0.0,
-                )
-                for i in range(self.n_joints)
-            ]
-            return q_paths
-        elif self.mp_type == MultiMotionProfileType.LINEAR and self.blend_accels is not None:
-            q_paths = [
-                MultiLinearSegmentPath(
-                    path_points=q_sets[:, i],
-                    dt_segments=self.dt_segments,
-                    blend_accels=self.blend_accels
-                )
-                for i in range(self.n_joints)
-            ]
-            return q_paths
-        elif self.mp_type == MultiMotionProfileType.LINEAR and self.blend_accels is None:
-            # noinspection GrazieInspectionRunner
-            raise ValueError(
-                "If motion profile type is set to LINEAR, parameter "
-                "'blend_accels' cannot be None."
+        chart = LineChart()
+        for i in range(self.n_joints):
+            chart.add_xy_data(
+                label=f"qd{i+1}",
+                x1_values=self._t_arr,
+                y1_values=self._qd_arr[:, i],
             )
-        else:
-            raise NotImplementedError(
-                f"No implementation available for motion profile type"
-                f" '{self.mp_type}'. "
-            )
+            if self.has_motion_profiles:
+                # noinspection PyUnboundLocalVariable
+                chart.add_xy_data(
+                    label=f"qd{i+1}, targets",
+                    x1_values=target_times,
+                    y1_values=target_qd_arr[:, i],
+                    style_props={
+                        "marker": "o",
+                        "linestyle": "none",
+                    },
+                )
 
-    def _time_sampling(
-        self,
-        q_paths: list[MultiMotionProfile],
-        n_samples: int
-    ) -> tuple[NumpyArray, NumpyArray]:
+        chart.x1.add_title("time, s")
+        chart.y1.add_title("joint velocity")
+        columns = 1
+        if self.n_joints == 1:
+            columns = 1
+        elif self.n_joints == 2:
+            columns = 2
+        elif self.n_joints >= 3:
+            columns = 3
+        chart.add_legend(columns=columns)
+        return chart
+
+    def plot_accelerations(self) -> LineChart:
         """
-        Takes time samples of the positions of the joints from their motion
-        paths.
+        Plots the acceleration paths qdd(t) of the joints and returns the
+        LineChart object. Call show() on this object to see the plot.
 
         Returns
         -------
-        t_arr: NumpyArray
-            The time moments at which the values of the joint coordinates are
-            calculated.
-        q_arr: NumpyArray
-            The values of the joint coordinates in the course of time. The
-            number of rows of the array is equal to the number of time samples.
-            The number of columns is equal to the number of joints of the
-            manipulator.
+        LineChart
         """
-        t_arr = np.linspace(0.0, sum(self.dt_segments), n_samples)
+        if self.has_motion_profiles:
+            target_times = np.concatenate(([0.0], np.cumsum(self.dt_segments)))
+            target_qdd_arr = np.array([
+                [mp.acceleration(t) for mp in self._motion_paths]
+                for t in target_times
+            ])
 
-        q_arr = np.column_stack([
-            np.array([q_path.position(t) for t in t_arr], dtype=float)
-            for q_path in q_paths
-        ])
-        return t_arr, q_arr
+        chart = LineChart()
+        for i in range(self.n_joints):
+            chart.add_xy_data(
+                label=f"qdd{i + 1}",
+                x1_values=self._t_arr,
+                y1_values=self._qdd_arr[:, i],
+            )
+            if self.has_motion_profiles:
+                # noinspection PyUnboundLocalVariable
+                chart.add_xy_data(
+                    label=f"qdd{i + 1}, targets",
+                    x1_values=target_times,
+                    y1_values=target_qdd_arr[:, i],
+                    style_props={
+                        "marker": "o",
+                        "linestyle": "none",
+                    },
+                )
+
+        chart.x1.add_title("time, s")
+        chart.y1.add_title("joint acceleration")
+        columns = 1
+        if self.n_joints == 1:
+            columns = 1
+        elif self.n_joints == 2:
+            columns = 2
+        elif self.n_joints >= 3:
+            columns = 3
+        chart.add_legend(columns=columns)
+        return chart
+
+    def plot_dynamics(self) -> LineChart:
+        if self.manipulator.has_dynamics():
+            tau_arr = self.dynamics()
+            t_arr = tau_arr[:, 0]
+
+            chart = LineChart()
+
+            for i in range(1, self.n_joints + 1):
+                chart.add_xy_data(
+                    label=f"tau{i}",
+                    x1_values=t_arr,
+                    y1_values=tau_arr[:, i]
+                )
+
+            chart.x1.add_title("time, s")
+            chart.y1.add_title("joint torque/force")
+            columns = 1
+            if self.n_joints == 1:
+                columns = 1
+            elif self.n_joints == 2:
+                columns = 2
+            elif self.n_joints >= 3:
+                columns = 3
+            chart.add_legend(columns=columns)
+            return chart
+        raise ConfigurationError("The manipulator's dynamics is not defined.")
 
 
-class CartesianMotionScheme:
+class CartesianSpaceScheme:
 
     def __init__(
         self,
         t_arr: NumpyArray,
         trajectory_frames: list[Frame],
+        *,
         target_frames: Sequence[Frame] | None = None,
+        dt_segments: Sequence[float] | None = None,
+        pose_vector_arr: NumpyArray | None = None,
+        pose_vector_velocity_arr: NumpyArray | None = None,
+        pose_vector_acceleration_arr: NumpyArray | None = None,
     ) -> None:
         self._t_arr = t_arr
         self._traj_frames = trajectory_frames
+
         self._target_frames = list(target_frames) if target_frames is not None else []
+        self.dt_segments = list(dt_segments) if dt_segments is not None else []
+
+        self._pose_vector_arr = pose_vector_arr
+        self._pose_vector_velocity_arr = pose_vector_velocity_arr
+        self._pose_vector_acceleration_arr = pose_vector_acceleration_arr
 
         self._traj_viewer = _CartesianTrajectoryPlotter(self)
         self._tables = _CartesianMotionTables(self)
 
     @classmethod
-    def from_joint_motion(cls, jms: JointMotionScheme) -> CartesianMotionScheme:
-        frames = [jms.manipulator.fwd_kin(row[1:]) for row in jms.scheme]
-        t_arr = jms.scheme[:, 0]
-        return cls(t_arr, frames, jms.target_frames)
+    def create(
+        cls,
+        target_frames: Sequence[Frame],
+        dt_segments: Sequence[float],
+        *,
+        dt_blends: float | Sequence[float] = 0.1,
+        num_t_samples: int = 100
+    ) -> CartesianSpaceScheme:
+        """
+        Creates a smooth Cartesian straight-line path through multiple 3D poses 
+        of a frame.
+
+        Parameters
+        ----------
+        target_frames: Sequence[Frame]
+            Sequence of target frames through which the Cartesian path is defined.
+        dt_segments: Sequence[float]
+            Sequence with the travel durations of each segment between two
+            successive target frames.
+        dt_blends: float | Sequence[float]
+            Single blend time or sequence of blend times at the target frames.
+        num_t_samples: int, default = 100
+            Number of time samples used to generate the trajectory.
+
+        Returns
+        -------
+        CartesianSpaceScheme
+        """
+        cm = CartesianMultiStraightLineMotion(
+            target_frames, dt_segments,
+            dt_blends, num_t_samples
+        )
+        t_arr, traj_frames = cm.trajectory()
+
+        _, pose_vector_arr = cm.pose_vector_profile()
+        _, pose_vector_velocity_arr = cm.pose_vector_velocity_profile()
+        _, pose_vector_acceleration_arr = cm.pose_vector_acceleration_profile()
+
+        return cls(
+            t_arr=t_arr,
+            trajectory_frames=traj_frames,
+            target_frames=target_frames,
+            dt_segments=dt_segments,
+            pose_vector_arr=pose_vector_arr,
+            pose_vector_velocity_arr=pose_vector_velocity_arr,
+            pose_vector_acceleration_arr=pose_vector_acceleration_arr,
+        )
+
+    def to_joint_space(
+        self, 
+        manipulator: SerialLinkManipulator,
+        ini_guess: Sequence[float] | None = None,
+    ) -> JointSpaceScheme:
+        """
+        Converts the Cartesian-space scheme to joint space.
+
+        Parameters
+        ----------
+        manipulator: SerialLinkManipulator
+            Manipulator for which a joint-space scheme is to be created.
+        ini_guess: Sequence[float] | None, default = None
+            Initial joint coordinates for the inverse kinematics of the first
+            target frame. If None, the current joint coordinates of the
+            manipulator are used. Each following target frame uses the previous
+            inverse-kinematics solution as its initial guess.
+        """
+        converter = _CartesianToJointSpaceConverter(
+            css=self,
+            manipulator=manipulator,
+            ini_guess=ini_guess,
+        )
+        return converter.convert()
+
+    @classmethod
+    def from_joint_space(cls, jss: JointSpaceScheme) -> CartesianSpaceScheme:
+        """
+        Converts a joint-space scheme to Cartesian space through application
+        of the forward kinematics of the manipulator.
+        """
+        frames = [jss.manipulator.fwd_kin(row) for row in jss.paths]
+        return cls(
+            t_arr=jss.time_samples,
+            trajectory_frames=frames,
+            target_frames=jss.target_frames,
+            dt_segments=jss.dt_segments,
+        )
 
     @property
     def scheme(self) -> NumpyArray:
@@ -541,11 +744,170 @@ class CartesianMotionScheme:
         )
 
 
+class _CartesianToJointSpaceConverter:
+    """
+    Helper class of CartesianSpaceScheme to convert Cartesian trajectory
+    samples to joint-space trajectory samples.
+    """
+    def __init__(
+        self,
+        css: CartesianSpaceScheme,
+        manipulator: SerialLinkManipulator,
+        ini_guess: Sequence[float] | None = None,
+    ) -> None:
+        self._css = css
+        self._manipulator = manipulator
+        self._ini_guess = ini_guess
+
+    @staticmethod
+    def _skew(v: NumpyArray) -> NumpyArray:
+        return np.array([
+            [0.0, -v[2], v[1]],
+            [v[2], 0.0, -v[0]],
+            [-v[1], v[0], 0.0],
+        ])
+
+    @classmethod
+    def _so3_left_jacobian(cls, rotvec: NumpyArray) -> NumpyArray:
+        theta = float(np.linalg.norm(rotvec))
+        S = cls._skew(rotvec)
+
+        if np.isclose(theta, 0.0):
+            return np.eye(3) + 0.5 * S
+
+        return (
+            np.eye(3)
+            + (1.0 - np.cos(theta)) / theta**2 * S
+            + (theta - np.sin(theta)) / theta**3 * (S @ S)
+        )
+
+    @classmethod
+    def _pose_vector_velocity_to_spatial_velocity(
+        cls,
+        pose_vector: NumpyArray,
+        pose_vector_velocity: NumpyArray,
+    ) -> NumpyArray:
+        v = pose_vector_velocity[:3]
+        omega = cls._so3_left_jacobian(pose_vector[3:]) @ pose_vector_velocity[3:]
+        return np.concatenate((v, omega))
+
+    def _spatial_velocity_samples(self) -> NumpyArray:
+        if self._css._pose_vector_arr is None or self._css._pose_vector_velocity_arr is None:
+            raise ConfigurationError(
+                "Cartesian pose-vector velocities are not available for this scheme."
+            )
+
+        return np.array([
+            self._pose_vector_velocity_to_spatial_velocity(p, pd)
+            for p, pd in zip(self._css._pose_vector_arr, self._css._pose_vector_velocity_arr)
+        ])
+
+    def _spatial_acceleration_samples(self, V_arr: NumpyArray) -> NumpyArray:
+        if self._css._pose_vector_acceleration_arr is None:
+            raise ConfigurationError(
+                "Cartesian pose-vector accelerations are not available for this scheme."
+            )
+
+        A_arr = np.empty_like(V_arr)
+        A_arr[:, :3] = self._css._pose_vector_acceleration_arr[:, :3]
+
+        edge_order = 2 if len(self._css._t_arr) > 2 else 1
+        A_arr[:, 3:] = np.gradient(
+            V_arr[:, 3:],
+            self._css._t_arr,
+            axis=0,
+            edge_order=edge_order,  # type: ignore
+        )
+        return A_arr
+
+    def _inverse_kinematics_samples(self) -> NumpyArray:
+        q_list = []
+        q_guess = (
+            self._ini_guess
+            if self._ini_guess is not None
+            else self._manipulator.joint_coords
+        )
+
+        for frame in self._css._traj_frames:
+            q = self._manipulator.inv_kin(frame, ini_guess=q_guess)
+            q_list.append(np.asarray(self._manipulator._convert_to(q), dtype=float))
+            q_guess = q
+
+        return np.array(q_list, dtype=float)
+
+    def _target_coordinates(self) -> NumpyArray:
+        q_sets = []
+        q_guess = (
+            self._ini_guess
+            if self._ini_guess is not None
+            else self._manipulator.joint_coords
+        )
+
+        for frame in self._css._target_frames:
+            q = self._manipulator.inv_kin(frame, ini_guess=q_guess)
+            q_sets.append(np.asarray(self._manipulator._convert_to(q), dtype=float))
+            q_guess = q
+
+        if not q_sets:
+            return np.empty((0, len(self._manipulator)))
+        return np.array(q_sets, dtype=float)
+
+    @staticmethod
+    def _reduce_to_jacobian_space(jacobian: NumpyArray, vector: NumpyArray) -> NumpyArray:
+        if jacobian.shape[0] == vector.shape[0]:
+            return vector
+        if jacobian.shape[0] == 3 and vector.shape[0] == 6:
+            return vector[[0, 1, 5]]
+        raise ConfigurationError(
+            f"Cannot map a {vector.shape[0]}D Cartesian vector to a "
+            f"{jacobian.shape[0]}D manipulator Jacobian."
+        )
+
+    def _joint_velocity(self, q: NumpyArray, V: NumpyArray) -> NumpyArray:
+        J = self._manipulator.jacobian(q)
+        V_reduced = self._reduce_to_jacobian_space(J, V)
+        return self._manipulator.jacobian_pinv(q) @ V_reduced
+
+    def _joint_acceleration(
+        self,
+        q: NumpyArray,
+        qd: NumpyArray,
+        A: NumpyArray,
+    ) -> NumpyArray:
+        J = self._manipulator.jacobian(q)
+        A_reduced = self._reduce_to_jacobian_space(J, A)
+        J_dot = self._manipulator.jacobian_dot(q, qd)
+        return self._manipulator.jacobian_pinv(q) @ (A_reduced - J_dot @ qd)
+
+    def convert(self) -> JointSpaceScheme:
+        q_arr = self._inverse_kinematics_samples()
+        V_arr = self._spatial_velocity_samples()
+        A_arr = self._spatial_acceleration_samples(V_arr)
+
+        qd_arr = np.array([
+            self._joint_velocity(q, V)
+            for q, V in zip(q_arr, V_arr)
+        ])
+        qdd_arr = np.array([
+            self._joint_acceleration(q, qd, A)
+            for q, qd, A in zip(q_arr, qd_arr, A_arr)
+        ])
+
+        return JointSpaceScheme(
+            self._css._t_arr, q_arr, qd_arr, qdd_arr,
+            target_frames=self._css._target_frames,
+            dt_segments=self._css.dt_segments,
+            manipulator=self._manipulator,
+            q_sets=self._target_coordinates(),
+            motion_paths=[],
+        )
+
+
 class _CartesianTrajectoryPlotter:
     """
     Helper class of CartesianMotionScheme to plot a Cartesian trajectory.
     """
-    def __init__(self, cms: CartesianMotionScheme) -> None:
+    def __init__(self, cms: CartesianSpaceScheme) -> None:
         self._cms = cms
 
     @staticmethod
@@ -828,7 +1190,7 @@ class _JointMotionTables:
     """
     def __init__(
         self,
-        jms: JointMotionScheme,
+        jms: JointSpaceScheme,
         angle_unit: str = "deg"
     ) -> None:
         self._jms = jms
@@ -843,8 +1205,8 @@ class _JointMotionTables:
         self._angle_unit = val
 
     @property
-    def coordinates(self) -> str:
-        _coordinates = self._jms.coordinates.copy()
+    def target_coordinates(self) -> str:
+        _coordinates = self._jms.target_coordinates.copy()
         n_cols = _coordinates.shape[1]
         links = self._jms.manipulator.links
 
@@ -866,15 +1228,25 @@ class _JointMotionTables:
     @property
     def scheme(self) -> str:
         _scheme = self._jms.scheme.copy()
-        n_cols = _scheme.shape[1]
         links = self._jms.manipulator.links
 
         headers = ["time"]
-        for i in range(1, n_cols):
+
+        for i in range(1, self._jms.n_joints + 1):
             if links[i-1].is_revolute and self._angle_unit == "deg":
                 col = np.rad2deg(_scheme[:, i])
                 _scheme[:, i] = col
             headers.append(f"q{i}")
+
+        x = 1
+        for i in range(self._jms.n_joints + 1, 2 * self._jms.n_joints + 1):
+            headers.append(f"qd{x}")
+            x += 1
+
+        x = 1
+        for i in range(2 * self._jms.n_joints + 1, 3 * self._jms.n_joints + 1):
+            headers.append(f"qdd{x}")
+            x += 1
 
         table = array_to_table(
             _scheme,
@@ -882,12 +1254,22 @@ class _JointMotionTables:
         )
         return table
 
+    @property
+    def dynamics(self) -> str:
+        if self._jms.manipulator.has_dynamics():
+            tau_arr = self._jms.dynamics()
+            headers = ["time"]
+            headers.extend([f"tau{i+1}" for i in range(self._jms.n_joints)])
+            table = array_to_table(tau_arr, headers=headers)
+            return table
+        raise ConfigurationError("The manipulator's dynamics is not defined.")
+
 
 class _CartesianMotionTables:
 
     def __init__(
         self,
-        cms: CartesianMotionScheme,
+        cms: CartesianSpaceScheme,
     ) -> None:
         self._cms = cms
 

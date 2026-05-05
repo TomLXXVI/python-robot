@@ -235,6 +235,8 @@ class KinematicChain(AbstractKinematicChain):
                 f"Number of joint coordinates ({len(v)}) does not "
                 f"match the number of links in the chain ({len(self._links)})"
             )
+        joint_coords_internal = self._convert_to(v)
+        self._check_joint_limits(joint_coords_internal)
         self._joint_coords = list(v)
         # Assign the joint variables to their respective links.
         for link, value in zip(self._links, self._joint_coords):
@@ -287,14 +289,28 @@ class KinematicChain(AbstractKinematicChain):
             )
         return joint_coords
 
+    def _check_joint_limits(self, joint_coords: Sequence[float]) -> Sequence[float]:
+        for i, (link, joint_coord) in enumerate(zip(self._links, joint_coords), start=1):
+            q_lim = link.q_lim_internal
+            if q_lim is None:
+                continue
+
+            lower, upper = q_lim
+            if joint_coord < lower or joint_coord > upper:
+                raise ConfigurationError(
+                    f"Joint coordinate {i} ({joint_coord:.6g}) is outside its "
+                    f"mechanical limits [{lower:.6g}, {upper:.6g}]."
+                )
+        return joint_coords
+
     def pose(self, index: int) -> Frame:
         """
         Returns the pose (a Frame object) of the given link in the chain. The
         pose describes the position and orientation of the frame of the given
         link w.r.t. the base frame of the chain.
 
-        The pose will depend on the current configuration state of this
-        KinematicChain object.
+        The returned frame will depend on the current configuration state of
+        this KinematicChain object.
 
         Parameters
         ----------
@@ -303,7 +319,7 @@ class KinematicChain(AbstractKinematicChain):
             Note that positive indices are *not* zero-based. So, the first link
             in the chain has index 1 (instead of 0), and so on.
             Negative indices however are kept Python-like. So, the last link in
-            the chain (i.e. the end-effector) has index -1, and so on.
+            the chain (end-effector) has index -1, and so on.
 
         Returns
         -------
@@ -359,7 +375,7 @@ class KinematicChain(AbstractKinematicChain):
 
     def fwd_kin(self, joint_coords: Sequence[float] | None = None) -> Frame:
         """
-        Returns the pose of the end-effector (i.e. the link frame farthest from
+        Returns the pose of the end-effector (the last link frame farthest from
         the base) w.r.t. the fixed base frame of the kinematic chain for the
         given sequence of joint coordinates.
 
@@ -379,18 +395,27 @@ class KinematicChain(AbstractKinematicChain):
         -------
         Frame
         """
+        # if joint_coords is not None:
+        #     joint_coords = self._check_number_of_joint_coords(joint_coords)
+        #     new_chain = self.get_joint_configuration(joint_coords)
+        #     return new_chain.pose(-1)
+        # else:
+        #     return self.pose(-1)
         if joint_coords is not None:
             joint_coords = self._check_number_of_joint_coords(joint_coords)
-            new_chain = self.get_joint_configuration(joint_coords)
-            return new_chain.pose(-1)
-        else:
-            return self.pose(-1)
+            joint_coords = self._convert_to(joint_coords)  # type: ignore
+            joint_coords = self._check_joint_limits(joint_coords)  # type: ignore
+            se3_obj = self.ets.fkine(np.asarray(joint_coords, dtype=float))
+            frame = Frame.from_matrix(se3_obj)
+            return frame
+        return self.pose(-1)
 
     def inv_kin(
         self,
         ee_frame: Frame,
         ini_guess: Sequence[float] | None = None,
         which_solver: IKSolverSpec = "LM",
+        check_joint_limits: bool = True,
         **kwargs
     ) -> NumpyArray:
         """
@@ -408,6 +433,9 @@ class KinematicChain(AbstractKinematicChain):
         which_solver: IKSolverSpec, default = "LM"
             Specificies the numeric IK-solver to use (see the docstrings of
             class ETS in module roboticstoolbox.robot.ETS.py).
+        check_joint_limits: bool, default = True
+            Indicates whether to check that a solution satisfies any joint
+            limits or not.
         kwargs:
             Optional keyword arguments to pass to the underlying IKSolver
             (see the docstrings of the IK-solvers in class ETS in module
@@ -444,7 +472,10 @@ class KinematicChain(AbstractKinematicChain):
                 "the number of joints in the chain."
             )
 
-        q0 = np.asarray(ini_guess) if ini_guess is not None else None
+        q0 = np.asarray(self._convert_to(ini_guess)) if ini_guess is not None else None
+
+        kwargs = dict(kwargs) if kwargs is not None else {}
+        kwargs.update({"joint_limits": check_joint_limits})
 
         if which_solver == "LM":
             sol = self.ets.ikine_LM(
@@ -456,7 +487,7 @@ class KinematicChain(AbstractKinematicChain):
             raise NotImplementedError(f"Solver {which_solver} is not implemented (yet).")
 
         if sol.success:
-            return np.asarray(self._convert_back(sol.q), dtype=float)  # converts angles in radians -> degrees if needed
+            return np.asarray(self._convert_back(sol.q), dtype=float)  # convert angles in radians to degrees if needed
         raise IKSolverError("A solution was not found.")
 
     def jacobian(
@@ -500,8 +531,9 @@ class KinematicChain(AbstractKinematicChain):
         if joint_coords is not None:
             joint_coords_ = self._check_number_of_joint_coords(joint_coords)
             joint_coords_ = self._convert_to(joint_coords_)  # any angles in degrees -> radians
+            joint_coords_ = self._check_joint_limits(joint_coords_)
         else:
-            joint_coords_ = self.joint_coords
+            joint_coords_ = self._convert_to(self.joint_coords)
         if ref_frame == "world":
             jac = self.ets.jacob0(np.asarray(joint_coords_, dtype=float))  # requires angles in radians
         elif ref_frame == "end-effector":
@@ -509,6 +541,51 @@ class KinematicChain(AbstractKinematicChain):
         else:
             raise InvalidArgument("Unrecognized reference frame.")
         return jac
+
+    def jacobian_pinv(
+        self,
+        joint_coords: Sequence[float] | None = None,
+        ref_frame: RefFrame = "world",
+        rcond: float | None = None,
+    ) -> NumpyArray:
+        """
+        Returns the Moore-Penrose pseudo-inverse of the manipulator Jacobian.
+        """
+        jac = self.jacobian(joint_coords=joint_coords, ref_frame=ref_frame)
+        if rcond is None:
+            return np.linalg.pinv(jac)
+        return np.linalg.pinv(jac, rcond=rcond)
+
+    def jacobian_dot(
+        self,
+        joint_coords: Sequence[float],
+        joint_velocities: Sequence[float],
+        representation: Literal["rpy/xyz", "rpy/zyx", "eul", "exp"] | None = None,
+    ) -> NumpyArray:
+        """
+        Returns the time derivative of the world-frame manipulator Jacobian.
+
+        The returned matrix maps joint velocities and accelerations according to:
+
+            A = J(q) qdd + Jdot(q, qd) qd
+
+        where A is the end-effector spatial acceleration in the world frame
+        when representation is None.
+        """
+        q = self._check_number_of_joint_coords(joint_coords)
+        qd = self._check_number_of_joint_coords(joint_velocities)
+
+        q = np.asarray(self._convert_to(q), dtype=float)
+        q = np.asarray(self._check_joint_limits(q), dtype=float)
+        qd = np.asarray(qd, dtype=float)
+
+        j0 = self.erobot.jacob0(q)
+        return np.asarray(
+            self.erobot.jacob0_dot(  # type: ignore
+                q, qd,
+                J0=j0, representation=representation,),
+            dtype=float,
+        )
 
     def is_singular(
         self,

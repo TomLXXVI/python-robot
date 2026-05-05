@@ -36,6 +36,9 @@ class SerialLinkManipulator(KinematicChain):
         """
         return self._erobot
 
+    def has_dynamics(self) -> bool:
+        return all([link.dynamics is not None for link in self])
+
     def inv_dyn(
         self,
         joint_coords: Sequence[float],

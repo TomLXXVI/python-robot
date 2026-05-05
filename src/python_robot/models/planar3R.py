@@ -1,13 +1,13 @@
 """
 Implements a class representing a "Simple Planar Three-Link Manipulator" (RRR).
 """
-from typing import Sequence
+from typing import Sequence, Literal
 
 import numpy as np
 
 from ..base.types import NumpyArray
 from ..base import Frame
-from ..manipulator.links.denavit_hartenberg import ModifiedRevoluteLink
+from ..manipulator.links.denavit_hartenberg import ModifiedLinkRevolute
 from ..manipulator.links import LinkDynamicParams
 from ..manipulator import SerialLinkManipulator, RefFrame, IKSolverSpec
 from ..manipulator import KinematicChainViewer
@@ -29,7 +29,8 @@ class Planar3R(SerialLinkManipulator):
         self,
         l1: float,
         l2: float,
-        point_masses: Sequence[float] | None = None
+        point_masses: Sequence[float] | None = None,
+        q_lim: Sequence[Sequence[float]] | None = None,
     ) -> None:
         """
         Creates an instance of SP3RLinkManipulator.
@@ -45,20 +46,23 @@ class Planar3R(SerialLinkManipulator):
             If two masses are given, they are assigned to the two non-zero
             planar arm segments. If three masses are given, they are assigned
             to all three revolute links in the kinematic chain.
+        q_lim: Sequence[Sequence[float]] | None, optional
+            Mechanical joint limits for the three revolute joints, in radians.
+            If provided, it must contain three pairs: one lower and upper limit
+            for each joint.
         """
         self.l1 = l1
         self.l2 = l2
 
         self.point_masses = self._normalize_point_masses(point_masses)
+        self.q_lim = self._normalize_q_lim(q_lim)
         links = self._create_links()
 
         super().__init__(links)
         self._viewer = KinematicChainViewer(self)
 
     @staticmethod
-    def _normalize_point_masses(
-        point_masses: Sequence[float] | None
-    ) -> tuple[float, ...]:
+    def _normalize_point_masses(point_masses: Sequence[float] | None) -> tuple[float, ...]:
         if point_masses is None:
             return 0.0, 0.0, 0.0
 
@@ -73,7 +77,23 @@ class Planar3R(SerialLinkManipulator):
             "segments, or three masses for all links."
         )
 
-    def _create_links(self) -> list[ModifiedRevoluteLink]:
+    @staticmethod
+    def _normalize_q_lim(q_lim: Sequence[Sequence[float]] | None) -> tuple[tuple[float, float], ...] | None:
+        if q_lim is None:
+            return None
+
+        limits = tuple(
+            tuple(float(elem) for elem in seq)
+            for seq in q_lim
+        )
+        if len(limits) != 3 or any(len(tup) != 2 for tup in limits):
+            raise ValueError(
+                "q_lim must contain three joint-limit pairs: one lower and "
+                "upper limit for each revolute joint."
+            )
+        return limits  # type: ignore[return-value]
+
+    def _create_links(self) -> list[ModifiedLinkRevolute]:
         # All links have angles in radians.
 
         def _create_point_mass_dynamics(self) -> list[LinkDynamicParams]:
@@ -89,17 +109,20 @@ class Planar3R(SerialLinkManipulator):
 
         dynamics = _create_point_mass_dynamics(self)
 
-        link1 = ModifiedRevoluteLink(
+        link1 = ModifiedLinkRevolute(
             length=0.0, twist=0.0, offset=0.0,  # length between J0 (fixed base) and J1
-            dynamics=dynamics[0]
+            dynamics=dynamics[0],
+            q_lim=None if self.q_lim is None else self.q_lim[0],
         )
-        link2 = ModifiedRevoluteLink(
+        link2 = ModifiedLinkRevolute(
             length=self.l1, twist=0.0, offset=0.0,  # length between J1 and J2
-            dynamics=dynamics[1]
+            dynamics=dynamics[1],
+            q_lim=None if self.q_lim is None else self.q_lim[1],
         )
-        link3 = ModifiedRevoluteLink(
+        link3 = ModifiedLinkRevolute(
             length=self.l2, twist=0.0, offset=0.0,  # length between J2 and J3
-            dynamics=dynamics[2]
+            dynamics=dynamics[2],
+            q_lim=None if self.q_lim is None else self.q_lim[2],
         )
 
         return [link1, link2, link3]
@@ -166,7 +189,7 @@ class Planar3R(SerialLinkManipulator):
             ee_frame=ee_frame,
             ini_guess=ini_guess,
             which_solver=which_solver,
-            mask=[1, 1, 0, 0, 0, 1],
+            mask=[1, 1, 0, 0, 0, 1],  # [x, y, z, alpha, beta, gamma] -> to indicate that this is a planar robot
             **kwargs
         )
 
@@ -180,6 +203,19 @@ class Planar3R(SerialLinkManipulator):
         """
         jac = super().jacobian(joint_coords, ref_frame)
         M = jac[[0, 1, -1], :]
+        return M
+
+    def jacobian_dot(
+        self,
+        joint_coords: Sequence[float],
+        joint_velocities: Sequence[float],
+        representation: Literal["rpy/xyz", "rpy/zyx", "eul", "exp"] | None = None,
+    ) -> NumpyArray:
+        """
+        Adapts the jacobian_dot() method from the parent class to the 2D-case.
+        """
+        jac_dot = super().jacobian_dot(joint_coords, joint_velocities, representation)
+        M = jac_dot[[0, 1, -1], :]
         return M
 
     def plot(self, **kwargs) -> None:

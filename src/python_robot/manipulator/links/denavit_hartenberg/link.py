@@ -1,10 +1,11 @@
 from abc import ABC
+from typing import Sequence
 
 import numpy as np
 from roboticstoolbox import RevoluteDH, PrismaticDH, RevoluteMDH, PrismaticMDH, ETS
 from roboticstoolbox import Link as RTBLink
 
-from python_robot.base.types import AngleUnit
+from python_robot.base.types import AngleUnit, NumpyArray
 from python_robot.base import Frame
 
 from ..link import AbstractLink, LinkDynamicParams
@@ -22,9 +23,10 @@ class AbstractDHLink(AbstractLink, ABC):
         offset: float | None,
         angle: float | None,
         angle_unit: AngleUnit | None = None,
-        dynamics: LinkDynamicParams | None = None
+        dynamics: LinkDynamicParams | None = None,
+        q_lim: Sequence[float] | NumpyArray | None = None,
     ) -> None:
-        super().__init__(angle_unit, dynamics)
+        super().__init__(angle_unit, dynamics, q_lim)
 
         self.length = length
         self.twist = self._set_twist(twist)
@@ -60,7 +62,7 @@ class AbstractDHLink(AbstractLink, ABC):
         return self.length
 
 
-class RevoluteAbstractDHLink(AbstractDHLink, ABC):
+class AbstractRevoluteDHLink(AbstractDHLink, ABC):
 
     def __init__(
         self,
@@ -68,9 +70,10 @@ class RevoluteAbstractDHLink(AbstractDHLink, ABC):
         twist: float,
         offset: float,
         angle_unit: AngleUnit | None = None,
-        dynamics: LinkDynamicParams | None = None
+        dynamics: LinkDynamicParams | None = None,
+        q_lim: Sequence[float] | NumpyArray | None = None,
     ) -> None:
-        super().__init__(length, twist, offset, None, angle_unit, dynamics)
+        super().__init__(length, twist, offset, None, angle_unit, dynamics, q_lim)
 
     @property
     def angle(self) -> float | None:
@@ -111,7 +114,7 @@ class RevoluteAbstractDHLink(AbstractDHLink, ABC):
         return False
 
 
-class PrismaticAbstractDHLink(AbstractDHLink, ABC):
+class AbstractPrismaticDHLink(AbstractDHLink, ABC):
 
     def __init__(
         self,
@@ -119,10 +122,12 @@ class PrismaticAbstractDHLink(AbstractDHLink, ABC):
         twist: float,
         angle: float,
         angle_unit: AngleUnit | None = None,
-        dynamics: LinkDynamicParams | None = None
+        dynamics: LinkDynamicParams | None = None,
+        q_lim: Sequence[float] | NumpyArray | None = None,
     ) -> None:
-        angle = np.deg2rad(angle) if self.angle_unit == "deg" else angle  # TODO: ??
-        super().__init__(length, twist, None, angle, angle_unit, dynamics)
+        resolved_angle_unit = self.defaults.angle_unit if angle_unit is None else angle_unit
+        angle = np.deg2rad(angle) if resolved_angle_unit == "deg" else angle
+        super().__init__(length, twist, None, angle, angle_unit, dynamics, q_lim)
 
     @property
     def offset(self) -> float:

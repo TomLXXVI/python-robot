@@ -1,3 +1,2 @@
-from .profiles import *
-from .cartesian import *
+from .profiles_1D import *
 from .planning import *
