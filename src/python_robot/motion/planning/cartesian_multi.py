@@ -3,12 +3,11 @@ from typing import Sequence
 from dataclasses import dataclass
 
 import numpy as np
-from spatialmath import SO3, SE3
 
 from ...base.types import NumpyArray
 from ...base import Frame
 
-from ..profiles_6D import MultiLinearSegmentVectorPath
+from ..profiles_6D import MultiLinearVectorPath
 
 
 __all__ = ["CartesianMultiStraightLineMotion"]
@@ -18,7 +17,7 @@ __all__ = ["CartesianMultiStraightLineMotion"]
 class CartesianMultiStraightLineMotion:
     """
     Class for finding a smooth Cartesian straight-line path through multiple
-    3D poses of a frame.
+    3D poses of the manipulator's end-effector frame.
 
     The motion is planned in a six-dimensional Cartesian pose space. The first
     three components describe the position of the frame origin. The last three
@@ -39,12 +38,13 @@ class CartesianMultiStraightLineMotion:
     Attributes
     ----------
     target_frames: Sequence[Frame]
-        Sequence of target frames through which the Cartesian path is defined.
+        Sequence of target poses (frames) through which the Cartesian path is
+        defined.
     dt_segments: Sequence[float]
         Sequence with the travel durations of each segment between two
-        successive target frames.
+        successive target poses.
     dt_blends: float | Sequence[float]
-        Single blend time or sequence of blend times at the target frames.
+        Single blend time or sequence of blend times at the target poses.
     num_t_samples: int, default = 100
         Number of time samples used to generate the trajectory.
     """
@@ -64,64 +64,34 @@ class CartesianMultiStraightLineMotion:
                 f"({len(self.target_frames) - 1})."
             )
 
-        # Transform target frames to target "pose vectors" [x, y, z, rx, ry, rz].
-        # When going from one target frame to the next, the change of
-        # frame orientation must happen with the smallest rotation possible.
+        # Transform the target frames to "pose vectors" [x, y, z, rx, ry, rz],
+        # where:
+        # - [x, y, z] are the Cartesian components of the origin of a target
+        #   frame, and
+        # - [rx, ry, rz] are the Cartesian components of the angle-axis vector
+        #   representation of a target frame's orientation.
+        # When going from one target frame to the next, the change of frame
+        # orientation must happen with the smallest rotation possible.
         self.pose_vectors = self._frames_to_pose_vectors(self.target_frames)
 
-        # Once we have the target "pose vectors" for each path point, we can use
-        # a similar method for generating the paths of the "pose variables"
-        # [x, y, z, rx, ry, rz]. Each path is composed of linear sections and
-        # parabolic blends. To ensure that the resultant motion from path point
-        # to path point in 3D space will be a straight line, the blend time used
-        # for the parabolic blend must be the same for each of the "pose
-        # variables".
-        self._mvp = MultiLinearSegmentVectorPath(
+        # Once we have the target "pose vectors", we can use them to construct
+        # the motion time-functions (position, velocity and acceleration) of the
+        # "pose variables" x, y, z, rx, ry, and rz. This can be done in a
+        # similar fashion as with joint-space motion. Each of the position
+        # paths x(t), y(t), z(t), rx(t), ry(t), and rz(t) is composed of linear
+        # sections and parabolic blends.
+        # To ensure that the resultant motion between path points is a straight
+        # line in 3D space, the blend time of the parabolic blends must be the
+        # same for each of the "pose variables" x, y, z, rx, ry, and rz.
+        self._motion_profile = MultiLinearVectorPath(
             path_points=self.pose_vectors,
             dt_segments=self.dt_segments,
             dt_blends=self.dt_blends,
         )
 
-    @staticmethod
-    def _rotation_matrix_to_rotvec(R: NumpyArray) -> NumpyArray:
-        """
-        Converts a rotation matrix to an angle-axis vector.
-
-        The magnitude of the returned vector is the rotation angle in radians.
-        Its direction is the rotation axis.
-        """
-        trace = np.trace(R)
-        cos_theta = 0.5 * (trace - 1.0)
-        cos_theta = np.clip(cos_theta, -1.0, 1.0)
-
-        theta = np.arccos(cos_theta)
-
-        if np.isclose(theta, 0.0):
-            return np.zeros(3)
-
-        if np.isclose(theta, np.pi):
-            axis = np.empty(3)
-
-            axis[0] = np.sqrt(max((R[0, 0] + 1.0) / 2.0, 0.0))
-            axis[1] = np.sqrt(max((R[1, 1] + 1.0) / 2.0, 0.0))
-            axis[2] = np.sqrt(max((R[2, 2] + 1.0) / 2.0, 0.0))
-
-            axis[1] = np.copysign(axis[1], R[0, 1] + R[1, 0])
-            axis[2] = np.copysign(axis[2], R[0, 2] + R[2, 0])
-
-            norm = np.linalg.norm(axis)
-            if np.isclose(norm, 0.0):
-                return np.zeros(3)
-
-            return theta * axis / norm  # type: ignore
-
-        axis = np.array([
-            R[2, 1] - R[1, 2],
-            R[0, 2] - R[2, 0],
-            R[1, 0] - R[0, 1],
-        ]) / (2.0 * np.sin(theta))
-
-        return theta * axis
+        # Time-sampling of the motion profile
+        res = self._time_sampling(self._motion_profile, self.num_t_samples)
+        self._t_arr, self._p_arr, self._pd_arr, self._pdd_arr = res
 
     @staticmethod
     def _choose_equivalent_rotvec(
@@ -157,19 +127,6 @@ class CartesianMultiStraightLineMotion:
         return candidates[i_min]
 
     @classmethod
-    def _frame_to_pose_vector(cls, frame: Frame) -> NumpyArray:
-        """
-        Converts a Frame object to a six-dimensional Cartesian pose vector.
-        """
-        position = np.asarray(frame.origin, dtype=float)
-        # R = np.asarray(frame.orient_mat.A, dtype=float)
-        # rotvec = cls._rotation_matrix_to_rotvec(R)
-        R = frame.orient_mat
-        theta, axis = R.angvec()
-        rotvec = theta * axis
-        return np.concatenate((position, rotvec))
-
-    @classmethod
     def _frames_to_pose_vectors(
         cls,
         frames: Sequence[Frame],
@@ -184,7 +141,7 @@ class CartesianMultiStraightLineMotion:
         pose_vectors = []
 
         for i, frame in enumerate(frames):
-            pose_vector = cls._frame_to_pose_vector(frame)
+            pose_vector = frame.to_pose_vector()
 
             if i > 0:
                 pose_vector[3:] = cls._choose_equivalent_rotvec(
@@ -197,51 +154,41 @@ class CartesianMultiStraightLineMotion:
         return np.array(pose_vectors)
 
     @staticmethod
-    def _pose_vector_to_frame(pose_vector: NumpyArray) -> Frame:
+    def _time_sampling(
+        motion_profile: MultiLinearVectorPath,
+        n_samples: int
+    ) -> tuple[NumpyArray, ...]:
         """
-        Converts a six-dimensional Cartesian pose vector to a Frame object.
-        """
-        position = pose_vector[:3]
-        rotvec = pose_vector[3:]
-        theta = np.linalg.norm(rotvec)
+        Takes evenly distributed time samples of the motion profiles of the
+        joints.
 
-        if np.isclose(theta, 0.0):
-            R = SO3()
-        else:
-            axis = rotvec / theta
-            R = SO3.AngleAxis(float(theta), axis, unit="rad")
-
-        T = SE3.Rt(R, position)
-        return Frame.from_matrix(T)
-
-    def pose_vector(self, t: float) -> NumpyArray:
+        Returns
+        -------
+        t_arr: NumpyArray
+            The time moments at which the values of the pose vectors are
+            calculated.
+        p_arr: NumpyArray
+            The values of the pose vectors in the course of time. The
+            number of rows of the array is equal to the number of time samples.
+            The number of columns is equal to 6 (x, y, z, rx, ry, rz).
+        pd_arr: NumpyArray
+            The values of the pose vector velocities in the course of time. The
+            number of rows of the array is equal to the number of time samples.
+            The number of columns is equal to 6 (v_x, v_y, v_z, w_x, w_y, w_z).
+        pdd_arr: NumpyArray
+            The values of the pose vector accelerations in the course of time.
+            The number of rows of the array is equal to the number of time
+            samples. The number of columns is equal to 6 (a_x, a_y, a_z,
+            alpha_x, alpha_y, alpha_z).
         """
-        Returns the six-dimensional Cartesian pose vector at time t.
-        """
-        return self._mvp.position(t)
-
-    def pose_vector_velocity(self, t: float) -> NumpyArray:
-        """
-        Returns the time derivative of the Cartesian pose vector at time t.
-        """
-        return self._mvp.velocity(t)
-
-    def pose_vector_acceleration(self, t: float) -> NumpyArray:
-        """
-        Returns the second time derivative of the Cartesian pose vector at time t.
-        """
-        return self._mvp.acceleration(t)
-
-    def frame(self, t: float) -> Frame:
-        """
-        Returns the frame pose at time t.
-        """
-        pose_vector = self.pose_vector(t)
-        return self._pose_vector_to_frame(pose_vector)
+        t_arr, p_arr = motion_profile.position_profile(n_samples)
+        _, pd_arr = motion_profile.velocity_profile(n_samples)
+        _, pdd_arr = motion_profile.acceleration_profile(n_samples)
+        return t_arr, p_arr, pd_arr, pdd_arr
 
     def trajectory(self) -> tuple[NumpyArray, list[Frame]]:
         """
-        Returns the Cartesian trajectory.
+        Returns the trajectory in Cartesian space.
 
         Returns
         -------
@@ -251,34 +198,42 @@ class CartesianMultiStraightLineMotion:
             List of frame poses along the trajectory at the time instants in
             `t_arr`.
         """
-        t_arr, pose_vector_arr = self._mvp.position_profile(self.num_t_samples)
+        t_arr, path = self._motion_profile.position_profile(self.num_t_samples)
         frames = [
-            self._pose_vector_to_frame(pose_vector)
-            for pose_vector in pose_vector_arr
+            Frame.from_pose_vector(pose_vector)
+            for pose_vector in path
         ]
         return t_arr, frames
 
-    def pose_vector_profile(self) -> tuple[NumpyArray, NumpyArray]:
+    @property
+    def motion_profile(self) -> MultiLinearVectorPath:
         """
-        Returns the sampled six-dimensional Cartesian pose-vector profile.
+        Returns the motion profile of the end-effector frame in Cartesian space.
         """
-        return self._mvp.position_profile(self.num_t_samples)
-
-    def pose_vector_velocity_profile(self) -> tuple[NumpyArray, NumpyArray]:
-        """
-        Returns the sampled velocity profile of the Cartesian pose vector.
-        """
-        return self._mvp.velocity_profile(self.num_t_samples)
-
-    def pose_vector_acceleration_profile(self) -> tuple[NumpyArray, NumpyArray]:
-        """
-        Returns the sampled acceleration profile of the Cartesian pose vector.
-        """
-        return self._mvp.acceleration_profile(self.num_t_samples)
+        return self._motion_profile
 
     @property
-    def motion_profile(self) -> MultiLinearSegmentVectorPath:
+    def motion_samples(self) -> tuple[NumpyArray, ...]:
         """
-        Returns the underlying multipoint vector motion profile.
+        Returns samples of the end-effector motion in Cartesian space.
+
+        Returns
+        -------
+        t_arr: NumpyArray
+            The time moments at which the values of the pose vectors are
+            calculated.
+        p_arr: NumpyArray
+            The values of the pose vectors in the course of time. The
+            number of rows of the array is equal to the number of time samples.
+            The number of columns is equal to 6 (x, y, z, rx, ry, rz).
+        pd_arr: NumpyArray
+            The values of the pose vector velocities in the course of time. The
+            number of rows of the array is equal to the number of time samples.
+            The number of columns is equal to 6 (v_x, v_y, v_z, w_x, w_y, w_z).
+        pdd_arr: NumpyArray
+            The values of the pose vector accelerations in the course of time.
+            The number of rows of the array is equal to the number of time
+            samples. The number of columns is equal to 6 (a_x, a_y, a_z,
+            alpha_x, alpha_y, alpha_z).
         """
-        return self._mvp
+        return self._t_arr, self._p_arr, self._pd_arr, self._pdd_arr

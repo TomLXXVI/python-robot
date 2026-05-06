@@ -8,7 +8,7 @@ from ...base.types import NumpyArray
 from ._profile_abc import MultiPointVectorMotionProfile
 
 
-__all__ = ["MultiLinearSegmentVectorPath"]
+__all__ = ["MultiLinearVectorPath"]
 
 
 @dataclass
@@ -44,7 +44,7 @@ class VectorPathPiece:
         return self.a
 
 
-class MultiLinearSegmentVectorPath(MultiPointVectorMotionProfile):
+class MultiLinearVectorPath(MultiPointVectorMotionProfile):
     """
     Represents a 6-dimensional multisegment path composed of linear
     segments interconnected by parabolic blends.
@@ -59,7 +59,7 @@ class MultiLinearSegmentVectorPath(MultiPointVectorMotionProfile):
 
     The blend times are specified explicitly. This is useful when all vector
     components must share the same blend time, as is the case for Cartesian
-    straight-line motion according to Craig's linear/parabolic blend scheme.
+    straight-line motion.
 
     Attributes
     ----------
@@ -89,8 +89,8 @@ class MultiLinearSegmentVectorPath(MultiPointVectorMotionProfile):
         ----------
         path_points: Sequence[Sequence[float]]
             Sequence of vector-valued path points of the form
-            [x, y, z, rx, ry, rz]. Each path point must have the same number of
-            components.
+            [x, y, z, rx, ry, rz]. Each path point must have the same number
+            of components.
         dt_segments: Sequence[float]
             Sequence of the durations of the path segments.
         dt_blends: float | Sequence[float]

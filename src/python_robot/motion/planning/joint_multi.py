@@ -7,7 +7,7 @@ import numpy as np
 from ...base.types import NumpyArray
 from ...base import Frame
 from ...manipulator import SerialLinkManipulator
-from ..profiles_1D.multi_point import MultiPointCubicPath, MultiLinearSegmentPath
+from ..profiles_1D.multi_point import MultiPointCubicPath, MultiLinearPath
 
 __all__ = [
     "MultiPointMotionProfile",
@@ -15,7 +15,7 @@ __all__ = [
     "JointSpaceMotion"
 ]
 
-MultiPointMotionProfile = MultiPointCubicPath | MultiLinearSegmentPath
+MultiPointMotionProfile = MultiPointCubicPath | MultiLinearPath
 
 
 class MultiPointMotionProfileType(StrEnum):
@@ -36,7 +36,16 @@ class JointSpaceMotion:
         ini_guess: Sequence[float] | None = None,
     ) -> None:
         """
-        Creates a JointMotion object.
+        Creates a JointSpaceMotion object.
+
+        The class performs three steps:
+        -   In the first step the target frames in Cartesian space are mapped
+            to corresponding joint configurations in joint space.
+        -   In the second step the target joint configurations and the travel times
+            between them are used to construct a motion profile for each of the
+            joints.
+        -   In the third step time samples are taken from the motion profile of
+            each joint.
 
         Parameters
         ----------
@@ -84,8 +93,8 @@ class JointSpaceMotion:
         self.dt_segments = dt_segments
 
         self._q_sets = self._map_to_joints(self.target_frames, self.ini_guess)
-        self._motion_paths = self._motion_profiling(self._q_sets)
-        res = self._time_sampling(self._motion_paths, num_t_samples)
+        self._motion_profiles = self._motion_profiling(self._q_sets)
+        res = self._time_sampling(self._motion_profiles, num_t_samples)
         self._t_arr, self._q_arr, self._qd_arr, self._qdd_arr = res
 
     def _map_to_joints(
@@ -124,13 +133,13 @@ class JointSpaceMotion:
 
         Returns
         -------
-        list[MotionProfile]
+        list[MultiPointMotionProfile]
             Either a list of MultiPointCubicPath objects or a list of
             MultiLinearSegmentPath objects, depending on the type of motion
             profile selected.
         """
         if self.mp_type == MultiPointMotionProfileType.CUBIC:
-            q_paths = [
+            motion_profiles = [
                 MultiPointCubicPath(
                     path_points=q_sets[:, i],
                     dt_segments=self.dt_segments,
@@ -139,17 +148,17 @@ class JointSpaceMotion:
                 )
                 for i in range(self.n_joints)
             ]
-            return q_paths
+            return motion_profiles
         elif self.mp_type == MultiPointMotionProfileType.LINEAR and self.blend_accels is not None:
-            q_paths = [
-                MultiLinearSegmentPath(
+            motion_profiles = [
+                MultiLinearPath(
                     path_points=q_sets[:, i],
                     dt_segments=self.dt_segments,
                     blend_accels=self.blend_accels
                 )
                 for i in range(self.n_joints)
             ]
-            return q_paths
+            return motion_profiles
         elif self.mp_type == MultiPointMotionProfileType.LINEAR and self.blend_accels is None:
             # noinspection GrazieInspectionRunner
             raise ValueError(
@@ -164,12 +173,12 @@ class JointSpaceMotion:
 
     def _time_sampling(
         self,
-        q_paths: list[MultiPointMotionProfile],
+        motion_profiles: list[MultiPointMotionProfile],
         n_samples: int
     ) -> tuple[NumpyArray, ...]:
         """
-        Takes time samples of the positions of the joints from their motion
-        paths.
+        Takes evenly distributed time samples of the motion profiles of the
+        joints.
 
         Returns
         -------
@@ -195,25 +204,21 @@ class JointSpaceMotion:
         t_arr = np.linspace(0.0, sum(self.dt_segments), n_samples)
 
         q_arr = np.column_stack([
-            np.array([q_path.position(t) for t in t_arr], dtype=float)
-            for q_path in q_paths
+            np.array([mp.position(t) for t in t_arr], dtype=float)
+            for mp in motion_profiles
         ])
 
         qd_arr = np.column_stack([
-            np.array([q_path.velocity(t) for t in t_arr], dtype=float)
-            for q_path in q_paths
+            np.array([mp.velocity(t) for t in t_arr], dtype=float)
+            for mp in motion_profiles
         ])
 
         qdd_arr = np.column_stack([
-            np.array([q_path.acceleration(t) for t in t_arr], dtype=float)
-            for q_path in q_paths
+            np.array([mp.acceleration(t) for t in t_arr], dtype=float)
+            for mp in motion_profiles
         ])
 
         return t_arr, q_arr, qd_arr, qdd_arr
-
-    @property
-    def motion_samples(self) -> tuple[NumpyArray, ...]:
-        return self._t_arr, self._q_arr, self._qd_arr, self._qdd_arr
 
     @property
     def target_coordinates(self) -> NumpyArray:
@@ -233,15 +238,42 @@ class JointSpaceMotion:
     @property
     def motion_profiles(self) -> list[MultiPointMotionProfile]:
         """
-        Returns the motion paths/motion profiles of the joints of the
-        manipulator.
+        Returns the motion profiles of the joints of the manipulator.
 
         Returns
         -------
-        list[MultiMotionProfile]
+        list[MultiPointMotionProfile]
             Either a list of MultiPointCubicPath objects or a list of
             MultiLinearSegmentPath objects, depending on the type of motion
             profile selected. The order corresponds with the order of the
             joints in the manipulator, from base to tool-end.
         """
-        return self._motion_paths
+        return self._motion_profiles
+
+    @property
+    def motion_samples(self) -> tuple[NumpyArray, ...]:
+        """
+        Returns motion samples of the joints of the manipulator.
+
+        Returns
+        -------
+        t_arr: NumpyArray
+            The time moments at which the values of the joint coordinates are
+            taken.
+        q_arr: NumpyArray
+            The values of the joint coordinates in the course of time. The
+            number of rows of the array is equal to the number of time samples.
+            The number of columns is equal to the number of joints of the
+            manipulator.
+        qd_arr: NumpyArray
+            The values of the joint velocities in the course of time. The
+            number of rows of the array is equal to the number of time samples.
+            The number of columns is equal to the number of joints of the
+            manipulator.
+        qdd_arr: NumpyArray
+            The values of the joint accelerations in the course of time. The
+            number of rows of the array is equal to the number of time samples.
+            The number of columns is equal to the number of joints of the
+            manipulator.
+        """
+        return self._t_arr, self._q_arr, self._qd_arr, self._qdd_arr

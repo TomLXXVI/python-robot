@@ -18,7 +18,7 @@ import numpy as np
 
 from ._profile_abc import MultiPointMotionProfile
 
-__all__ = ["MultiLinearSegmentPath"]
+__all__ = ["MultiLinearPath"]
 
 
 @dataclass
@@ -222,7 +222,7 @@ class PathPiece:
         return self.a
 
 
-class MultiLinearSegmentPath(MultiPointMotionProfile):
+class MultiLinearPath(MultiPointMotionProfile):
     """
     Represents a multisegment path composed of linear segments interconnected
     by parabolic blends.

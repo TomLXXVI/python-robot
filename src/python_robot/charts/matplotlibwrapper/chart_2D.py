@@ -195,7 +195,8 @@ class Chart(ABC):
         plt.show()
 
     def save(
-        self, name: str,
+        self,
+        name: str,
         location: Optional[str] = None,
         fmt: str = 'png',
         with_grid: bool = True
@@ -218,6 +219,7 @@ class Chart(ABC):
 
 class LineChart(Chart):
 
+    # noinspection PyUnresolvedReferences
     def _draw_xy_data(self):
         for label, dataset in self.datasets.items():
             if dataset['x1_values'] is not None:
@@ -239,6 +241,7 @@ class LineChart(Chart):
 
 class FilledLineChart(Chart):
 
+    # noinspection PyUnresolvedReferences
     def _draw_xy_data(self):
         for label, dataset in self.datasets.items():
             if dataset['x1_values'] is not None:
@@ -260,6 +263,7 @@ class FilledLineChart(Chart):
 
 class BarChart(Chart):
 
+    # noinspection PyUnresolvedReferences
     def _draw_xy_data(self):
         for label, dataset in self.datasets.items():
             if dataset['x1_values'] is not None:

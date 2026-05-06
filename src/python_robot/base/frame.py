@@ -114,6 +114,43 @@ class Frame:
         orient_angles = orient_mat.rpy(angle_unit, order="zyx")
         return cls(origin, orient_angles, angle_unit)
 
+    def to_pose_vector(self) -> NumpyArray:
+        """
+        Returns a 6x1 vector representation of the frame [x, y, z, rx, ry, rz].
+        The first 3 elements are the position of the frame's origin. The last 3
+        elements are the Cartesian components of the angle-axis vector
+        describing the frame's orientation.
+
+        Returns
+        -------
+        NumpyArray
+        """
+        position = np.asarray(self.origin, dtype=float)
+        theta, axis = self.orient_mat.angvec()
+        rotvec = theta * axis
+        return np.concatenate((position, rotvec))
+
+    @classmethod
+    def from_pose_vector(cls, pose_vector: ArrayLike6) -> Frame:
+        """
+        Given a pose vector [x, y, z, rx, ry, rz], returns the corresponding
+        Frame object.
+        """
+        pose_vector_ = np.asarray(pose_vector, dtype=float)
+
+        position = pose_vector_[:3]
+        rotvec = pose_vector_[3:]
+        theta = np.linalg.norm(rotvec)
+
+        if np.isclose(theta, 0.0):
+            R = SO3()
+        else:
+            axis = rotvec / theta
+            R = SO3.AngleAxis(float(theta), axis, unit="rad")
+
+        T = SE3.Rt(R, position)
+        return cls.from_matrix(T)
+
     def __mul__(self, other: Transformation | Frame) -> Frame:
         """
         Frame transformation via post-multiplication. The transformation of this

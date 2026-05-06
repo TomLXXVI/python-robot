@@ -47,6 +47,27 @@ class Camera:
         """Reset the camera so that all visible actors fit in the view."""
         self.plotter.reset_camera()
 
+    def pan(self, dx: float = 0.0, dy: float = 0.0, amount: float = 0.1) -> None:
+        cam = self.plotter.camera
+
+        position = np.asarray(cam.position, dtype=float)
+        focal_point = np.asarray(cam.focal_point, dtype=float)
+        up = np.asarray(cam.up, dtype=float)
+
+        direction = focal_point - position
+        right = np.cross(direction, up)
+
+        right /= np.linalg.norm(right)
+        up /= np.linalg.norm(up)
+
+        delta = amount * (dx * right + dy * up)
+
+        cam.position = tuple(position + delta)
+        cam.focal_point = tuple(focal_point + delta)
+
+        self.plotter.reset_camera_clipping_range()
+        self.plotter.render()
+
     def enable_view_shortcuts(self) -> None:
         """
         Enable keyboard shortcuts for standard orthographic views.
@@ -61,6 +82,10 @@ class Camera:
         k : back view
         i : isometric view
         c : reset camera
+        a : pan right
+        d : pan left
+        w : pan down
+        s : pan up
         """
         self.plotter.add_key_event("t", self.set_top_view)
         self.plotter.add_key_event("b", self.set_bottom_view)
@@ -70,6 +95,10 @@ class Camera:
         self.plotter.add_key_event("k", self.set_back_view)
         self.plotter.add_key_event("i", self.set_isometric_view)
         self.plotter.add_key_event("c", self.reset_camera_to_scene)
+        self.plotter.add_key_event("a", lambda : self.pan(dx=-1.0))
+        self.plotter.add_key_event("d", lambda : self.pan(dx=1.0))
+        self.plotter.add_key_event("w", lambda : self.pan(dy=1.0))
+        self.plotter.add_key_event("s", lambda : self.pan(dy=-1.0))
 
 
 class WorldScene:
