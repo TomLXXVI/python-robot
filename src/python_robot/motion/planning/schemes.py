@@ -805,11 +805,8 @@ class _CartesianToJointSpaceConverter:
         )
 
     @classmethod
-    def _pd_to_spatial_velocity(
-        cls,
-        p: NumpyArray,
-        pd: NumpyArray,
-    ) -> NumpyArray:
+    def _pd_to_V(cls, p: NumpyArray, pd: NumpyArray) -> NumpyArray:
+        """Converts pose vector velocity to spatial velocity."""
         v = pd[:3]
         omega = cls._so3_left_jacobian(p[3:]) @ pd[3:]
         return np.concatenate((v, omega))
@@ -820,7 +817,7 @@ class _CartesianToJointSpaceConverter:
                 "Cartesian pose-vector velocities are not available for this scheme."
             )
         return np.array([
-            self._pd_to_spatial_velocity(p, pd)
+            self._pd_to_V(p, pd)
             for p, pd in zip(self._css._p_arr, self._css._pd_arr)
         ])
 
