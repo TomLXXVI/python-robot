@@ -521,6 +521,22 @@ class SpatialVelocity:
         p: ArrayLike6,
         p_dot: ArrayLike6
     ) -> SpatialVelocity:
+        """
+        Given a pose vector p and its first time derivative, returns the
+        corresponding spatial velocity vector of the frame.
+
+        Parameters
+        ----------
+        p: ArrayLike6
+            Pose vector (x, y, z, rx, ry, rz).
+        p_dot: ArrayLike6
+            First time derivative of the pose vector (x_dot, y_dot, z_dot,
+            rx_dot, ry_dot, rz_dot).
+
+        Returns
+        -------
+        SpatialVelocity
+        """
         v = np.asarray(p_dot[:3], dtype=float)
         r = np.asarray(p[3:], dtype=float)
         r_dot = np.asarray(p_dot[3:], dtype=float)
@@ -617,6 +633,25 @@ class SpatialAcceleration:
         p_dot: ArrayLike6,
         p_ddot: ArrayLike6
     ) -> SpatialAcceleration:
+        """
+        Given a pose vector p and its first and second time derivative, returns
+        the corresponding spatial acceleration vector of the frame.
+
+        Parameters
+        ----------
+        p: ArrayLike6
+            Pose vector (x, y, z, rx, ry, rz).
+        p_dot: ArrayLike6
+            First time derivative of the pose vector (x_dot, y_dot, z_dot,
+            rx_dot, ry_dot, rz_dot).
+        p_ddot: ArrayLike6
+            Second time derivative of the pose vector (x_ddot, y_ddot, z_ddot,
+            rx_ddot, ry_ddot, rz_ddot).
+
+        Returns
+        -------
+        SpatialAcceleration
+        """
         a = np.asarray(p_ddot[:3], dtype=float)
         r = np.asarray(p[3:], dtype=float)
         r_dot = np.asarray(p_dot[3:], dtype=float)

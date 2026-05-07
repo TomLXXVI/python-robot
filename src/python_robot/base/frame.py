@@ -411,14 +411,41 @@ def pose_rate_of_change(
 # noinspection PyUnresolvedReferences
 def _plot_frames(frames: list[Frame], **kwargs) -> 'WorldScene':
     from ..visualisation import WorldScene
+    from ..utils.introspection import get_valid_keyword_parameters
 
-    ws = WorldScene(**kwargs)
+    scene_params = get_valid_keyword_parameters(
+        WorldScene.__init__,
+        exclude={"self"}
+    )
+    frame_params = get_valid_keyword_parameters(
+        WorldScene.add_frame,
+        exclude={"self", "frame"}
+    )
+
+    scene_kwargs = {
+        key: value for key, value in kwargs.items()
+        if key in scene_params
+    }
+
+    frame_kwargs = {
+        key: value for key, value in kwargs.items()
+        if key in frame_params
+    }
+
+    unknown_kwargs = set(kwargs) - scene_params - frame_params
+    if unknown_kwargs:
+        raise TypeError(
+            f"Unknown plot_frames keyword argument(s): "
+            f"{', '.join(sorted(unknown_kwargs))}"
+        )
+
+    ws = WorldScene(**scene_kwargs)
     ws.camera.enable_view_shortcuts()
     ws.add_plane_grid()
     ws.add_world_frame()
 
     for frame in frames:
-        ws.add_frame(frame, **kwargs)
+        ws.add_frame(frame, **frame_kwargs)
 
     return ws
 

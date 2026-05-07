@@ -47,12 +47,12 @@ class VectorPathPiece:
 
 class MultiLinearVectorPath(MultiPointVectorMotionProfile):
     """
-    Builds a multisegment path in time composed of linear segments
+    Builds a multisegment path in time which is composed of linear segments
     interconnected by parabolic blends.
 
     This class is the vectorial counterpart of MultiLinearPath. It is intended
-    for path variables that are naturally represented as vectors, for example
-    Cartesian pose vectors of the form
+    for motion variables that are naturally represented as vectors, like pose
+    vectors of the form
 
         [x, y, z, rx, ry, rz]
 

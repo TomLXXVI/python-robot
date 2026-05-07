@@ -119,7 +119,6 @@ class WorldScene:
         background_color: str = "white",
         off_screen: bool = False,
         window_size: tuple[int, int] = (800, 600),  #type: ignore
-        **kwargs
     ) -> None:
         """
         Create the scene.
@@ -140,8 +139,6 @@ class WorldScene:
             Whether the plotter renders off-screen.
         window_size : tuple[int, int], default=(1200, 900)
             Window size of the plotter.
-        kwargs : dict
-            Additional keyword arguments
         """
         self.extent = float(extent)
         self.spacing = float(spacing)
