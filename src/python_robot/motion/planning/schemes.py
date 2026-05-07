@@ -6,7 +6,7 @@ import numpy as np
 from ...base.types import NumpyArray, AngleUnit
 from ...base import Frame
 from ...manipulator import SerialLinkManipulator, ConfigurationError
-from ...charts import LineChart
+from ...charts import LineChart, CompositeLineChart
 from ...visualisation import WorldScene
 from ...utils import array_to_table
 from .joint_multi import JointSpaceMotion, MultiPointMotionProfile, MultiPointMotionProfileType
@@ -204,7 +204,7 @@ class JointSpaceScheme:
         return self._t_arr
 
     @property
-    def paths(self) -> NumpyArray:
+    def time_paths(self) -> NumpyArray:
         """
         Returns the array of sampled joint positions q.
 
@@ -252,7 +252,7 @@ class JointSpaceScheme:
             return np.column_stack((self._t_arr, tau_arr))
         raise ConfigurationError("The manipulator's dynamics is not defined.")
 
-    def plot_paths(self) -> LineChart:
+    def plot_time_paths(self) -> LineChart:
         """
         Plots the position paths q(t) of the joints and returns the LineChart
         object. Call show() on this object to see the plot.
@@ -430,11 +430,13 @@ class CartesianSpaceScheme:
         self,
         t_arr: NumpyArray,
         traj_frames: list[Frame],
-        target_frames: Sequence[Frame] | None = None,
-        dt_segments: Sequence[float] | None = None,
+        target_frames: Sequence[Frame],
+        dt_segments: Sequence[float],
         p_arr: NumpyArray | None = None,
         V_arr: NumpyArray | None = None,
         A_arr: NumpyArray | None = None,
+        target_V_arr: NumpyArray | None = None,
+        target_A_arr: NumpyArray | None = None,
     ) -> None:
         self._t_arr = t_arr
         self._traj_frames = traj_frames
@@ -445,6 +447,8 @@ class CartesianSpaceScheme:
         self._p_arr = p_arr
         self._V_arr = V_arr
         self._A_arr = A_arr
+        self._target_V_arr = target_V_arr
+        self._target_A_arr = target_A_arr
 
         self._traj_viewer = _CartesianTrajectoryPlotter(self)
         self._tables = _CartesianMotionTables(self)
@@ -483,6 +487,15 @@ class CartesianSpaceScheme:
         )
         t_arr, traj_frames = cm.trajectory()
         _, p_arr, V_arr, A_arr = cm.motion_samples
+        target_times = np.concatenate(([0.0], np.cumsum(dt_segments)))
+        target_V_arr = np.array([
+            cm.motion_profile.spatial_velocity(t)
+            for t in target_times
+        ])
+        target_A_arr = np.array([
+            cm.motion_profile.acceleration(t)
+            for t in target_times
+        ])
 
         return cls(
             t_arr=t_arr,
@@ -492,6 +505,8 @@ class CartesianSpaceScheme:
             p_arr=p_arr,
             V_arr=V_arr,
             A_arr=A_arr,
+            target_V_arr=target_V_arr,
+            target_A_arr=target_A_arr,
         )
 
     def to_joint_space(
@@ -530,7 +545,7 @@ class CartesianSpaceScheme:
         Converts a joint-space scheme to Cartesian space through application
         of the forward kinematics of the manipulator.
         """
-        frames = [jss.manipulator.fwd_kin(row) for row in jss.paths]
+        frames = [jss.manipulator.fwd_kin(row) for row in jss.time_paths]
         return cls(
             t_arr=jss.time_samples,
             traj_frames=frames,
@@ -611,6 +626,182 @@ class CartesianSpaceScheme:
             np.asarray(frame.origin, dtype=float)
             for frame in self._target_frames
         ])
+
+    @property
+    def time_samples(self) -> NumpyArray:
+        """Returns the array of sampled time moments."""
+        return self._t_arr
+
+    @property
+    def time_paths(self) -> NumpyArray:
+        """
+        Returns the array of sampled pose vectors.
+        """
+        if self._p_arr is not None:
+            return self._p_arr
+        raise ValueError("Time paths are not available.")
+
+    @property
+    def spatial_velocities(self) -> NumpyArray:
+        """
+        Returns the array of sampled spatial velocities V.
+        """
+        if self._V_arr is not None:
+            return self._V_arr
+        raise ValueError("Spatial velocities are not available.")
+
+    @property
+    def spatial_accelerations(self) -> NumpyArray:
+        """
+        Returns the array of sampled spatial accelerations.
+        """
+        if self._A_arr is not None:
+            return self._A_arr
+        raise ValueError("Spatial accelerations are not available.")
+
+    @staticmethod
+    def _pose_vectors_from_frames(frames: Sequence[Frame]) -> NumpyArray:
+        return CartesianMultiStraightLineMotion._frames_to_pose_vectors(frames)
+
+    def plot_time_paths(self):
+        """
+        Plots the Cartesian pose paths p(t) of the end-effector frame and
+        returns the LineChart object. Call show() on this object to see the
+        plot.
+        """
+        labels = ("x", "y", "z", "rx", "ry", "rz")
+        p_arr = self.time_paths
+
+        target_times = np.concatenate(([0.0], np.cumsum(self.dt_segments)))
+        target_p_arr = self._pose_vectors_from_frames(self._target_frames)
+        has_targets = len(target_times) == len(target_p_arr)
+
+        parent = self
+        class PlotTimePaths(CompositeLineChart):
+            def add_data(self) -> None:
+                for i, label in enumerate(labels):
+                    if i < 3:
+                        chart = self.top_chart
+                    else:
+                        chart = self.bottom_chart
+
+                    chart.add_xy_data(
+                        label=label,
+                        x1_values=parent._t_arr,
+                        y1_values=p_arr[:, i],
+                    )
+                    if has_targets:
+                        chart.add_xy_data(
+                            label=f"{label}, targets",
+                            x1_values=target_times,
+                            y1_values=target_p_arr[:, i],
+                            style_props={
+                                "marker": "o",
+                                "linestyle": "none",
+                            },
+                        )
+                self.bottom_chart.x1.add_title("time, s")
+                self.top_chart.y1.add_title("linear position")
+                self.bottom_chart.y1.add_title("angular position")
+                self.top_chart.add_legend(anchor="lower center", position=(0.5, 1.05), columns=3)
+                self.bottom_chart.add_legend(anchor="upper center", position=(0.5, -0.25), columns=3)
+
+        return PlotTimePaths()
+
+    def plot_spatial_velocities(self):
+        """
+        Plots the spatial velocity paths V(t) of the end-effector frame and
+        returns the LineChart object. Call show() on this object to see the
+        plot.
+        """
+        labels = ("v_x", "v_y", "v_z", "w_x", "w_y", "w_z")
+        V_arr = self.spatial_velocities
+        target_times = np.concatenate(([0.0], np.cumsum(self.dt_segments)))
+        has_targets = (
+            self._target_V_arr is not None
+            and len(target_times) == len(self._target_V_arr)
+        )
+
+        parent = self
+        class PlotSpatialVelocities(CompositeLineChart):
+            def add_data(self) -> None:
+                for i, label in enumerate(labels):
+                    if i < 3:
+                        chart = self.top_chart
+                    else:
+                        chart = self.bottom_chart
+
+                    chart.add_xy_data(
+                        label=label,
+                        x1_values=parent._t_arr,
+                        y1_values=V_arr[:, i],
+                    )
+                    if has_targets:
+                        # noinspection PyUnresolvedReferences
+                        chart.add_xy_data(
+                            label=f"{label}, targets",
+                            x1_values=target_times,
+                            y1_values=parent._target_V_arr[:, i],
+                            style_props={
+                                "marker": "o",
+                                "linestyle": "none",
+                            },
+                        )
+                self.bottom_chart.x1.add_title("time, s")
+                self.top_chart.y1.add_title("linear velocity")
+                self.bottom_chart.y1.add_title("angular velocity")
+                self.top_chart.add_legend(anchor="lower center", position=(0.5, 1.05), columns=3)
+                self.bottom_chart.add_legend(anchor="upper center", position=(0.5, -0.25), columns=3)
+
+        return PlotSpatialVelocities()
+
+    def plot_spatial_accelerations(self):
+        """
+        Plots the spatial acceleration paths A(t) of the end-effector frame and
+        returns the LineChart object. Call show() on this object to see the
+        plot.
+        """
+        labels = ("a_x", "a_y", "a_z", "alpha_x", "alpha_y", "alpha_z")
+        A_arr = self.spatial_accelerations
+        target_times = np.concatenate(([0.0], np.cumsum(self.dt_segments)))
+        has_targets = (
+            self._target_A_arr is not None
+            and len(target_times) == len(self._target_A_arr)
+        )
+
+        parent = self
+        class PlotSpatialAccelerations(CompositeLineChart):
+            def add_data(self) -> None:
+                for i, label in enumerate(labels):
+                    if i < 3:
+                        chart = self.top_chart
+                    else:
+                        chart = self.bottom_chart
+
+                    chart.add_xy_data(
+                        label=label,
+                        x1_values=parent._t_arr,
+                        y1_values=A_arr[:, i],
+                    )
+                    if has_targets:
+                        # noinspection PyUnresolvedReferences
+                        chart.add_xy_data(
+                            label=f"{label}, targets",
+                            x1_values=target_times,
+                            y1_values=parent._target_A_arr[:, i],
+                            style_props={
+                                "marker": "o",
+                                "linestyle": "none",
+                            },
+                        )
+
+                self.bottom_chart.x1.add_title("time, s")
+                self.top_chart.y1.add_title("linear acceleration")
+                self.bottom_chart.y1.add_title("angular acceleration")
+                self.top_chart.add_legend(anchor="lower center", position=(0.5, 1.05), columns=3)
+                self.bottom_chart.add_legend(anchor="upper center", position=(0.5, -0.25), columns=3)
+
+        return PlotSpatialAccelerations()
 
     def plot_trajectory(
         self,

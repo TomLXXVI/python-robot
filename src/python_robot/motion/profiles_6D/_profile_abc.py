@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from ...base.types import NumpyArray
-from ...charts import LineChart
+from ...charts import CompositeLineChart
 
 __all__ = ["MultiPointVectorMotionProfile"]
 
@@ -81,7 +80,7 @@ class MultiPointVectorMotionProfile(ABC):
         Call method show() on this wrapper object to display the plots.
         """
         parent = self
-        class PlotPositionProfile(_CompositeLineChart):
+        class PlotPositionProfile(CompositeLineChart):
             def add_data(self) -> None:
                 t_arr, p_arr = parent.position_profile(n_samples)
                 self.top_chart.add_xy_data(
@@ -129,7 +128,7 @@ class MultiPointVectorMotionProfile(ABC):
         Call method show() on this wrapper object to display the plots.
         """
         parent = self
-        class PlotVelocityProfile(_CompositeLineChart):
+        class PlotVelocityProfile(CompositeLineChart):
             def add_data(self) -> None:
                 t_arr, v_arr = parent.velocity_profile(n_samples)
                 self.top_chart.add_xy_data(
@@ -177,7 +176,7 @@ class MultiPointVectorMotionProfile(ABC):
         on this wrapper object to display the plots.
         """
         parent = self
-        class PlotAccelerationProfile(_CompositeLineChart):
+        class PlotAccelerationProfile(CompositeLineChart):
             def add_data(self) -> None:
                 t_arr, a_arr = parent.acceleration_profile(n_samples)
                 self.top_chart.add_xy_data(
@@ -201,7 +200,7 @@ class MultiPointVectorMotionProfile(ABC):
                     y1_values=a_arr[:, 3]
                 )
                 self.bottom_chart.add_xy_data(
-                    label="ry_dot",
+                    label="ry_ddot",
                     x1_values=t_arr,
                     y1_values=a_arr[:, 4]
                 )
@@ -225,7 +224,7 @@ class MultiPointVectorMotionProfile(ABC):
         Call method show() on this wrapper object to display the plots.
         """
         parent = self
-        class PlotSpatialVelocityProfile(_CompositeLineChart):
+        class PlotSpatialVelocityProfile(CompositeLineChart):
             def add_data(self) -> None:
                 t_arr, v_arr = parent.spatial_velocity_profile(n_samples)
                 self.top_chart.add_xy_data(
@@ -273,7 +272,7 @@ class MultiPointVectorMotionProfile(ABC):
         Call method show() on this wrapper object to display the plots.
         """
         parent = self
-        class PlotSpatialAccelerationProfile(_CompositeLineChart):
+        class PlotSpatialAccelerationProfile(CompositeLineChart):
             def add_data(self) -> None:
                 t_arr, a_arr = parent.spatial_acceleration_profile(n_samples)
                 self.top_chart.add_xy_data(
@@ -313,40 +312,3 @@ class MultiPointVectorMotionProfile(ABC):
                 self.bottom_chart.add_legend(anchor="upper center", position=(0.5, -0.25), columns=3)
 
         return PlotSpatialAccelerationProfile()
-
-
-class _CompositeLineChart(ABC):
-    
-    def __init__(self):
-        figure, axes = plt.subplots(
-            2,
-            1,
-            sharex=True,  # type: ignore
-            layout="constrained"
-        )
-        self.top_chart = LineChart(constructs=(figure, axes[0]))
-        self.bottom_chart = LineChart(constructs=(figure, axes[1]))
-        # Add drawing data to the top and bottom chart
-        self.add_data()
-
-    def show(self, with_grid: bool = True) -> None:
-        self.top_chart.draw(with_grid)
-        self.bottom_chart.draw(with_grid)
-        plt.show()
-
-    def save(
-        self,
-        name: str,
-        location: str | None = None,
-        fmt: str = 'png',
-        with_grid: bool = True
-    ) -> None:
-        self.top_chart.draw(with_grid)
-        self.bottom_chart.save(name, location, fmt, with_grid)
-    
-    @abstractmethod
-    def add_data(self) -> None:
-        """
-        Implement this method to add data to the top and the bottom line-chart.
-        """
-        pass

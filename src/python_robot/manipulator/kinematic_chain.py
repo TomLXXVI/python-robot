@@ -689,7 +689,7 @@ class KinematicChain(AbstractKinematicChain):
             Joint torques/forces needed to apply the force or moment with the
             end-effector.
         """
-        W_ee_arr = W_ee.array() if isinstance(W_ee, Wrench) else np.asarray(W_ee, dtype=float)
+        W_ee_arr = np.asarray(W_ee, dtype=float)
         J = self.jacobian(None, ref_frame=ref_frame)
         joint_torques = J.T @ W_ee_arr
         return joint_torques

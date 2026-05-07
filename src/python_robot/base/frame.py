@@ -206,7 +206,7 @@ class Frame:
         -------
         AngularVelocity
         """
-        omega_ = omega.array()
+        omega_ = np.asarray(omega, dtype=float)
         omega_ = np.asarray(self.matrix.A[:3, :3]) @ omega_[np.newaxis, :].T
         return type(omega)(omega_.flatten())
 
@@ -229,7 +229,7 @@ class Frame:
         -------
         SpatialVelocity
         """
-        V_ = V.array()
+        V_ = np.asarray(V, dtype=float)
         if not is_frame:
             V_other = self.jacobian() @ V_[np.newaxis, :].T
             return type(V)(coords=V_other.flatten())
@@ -251,13 +251,13 @@ class Frame:
         -------
         Wrench
         """
-        W_ = W.array()
+        W_ = np.asarray(W, dtype=float)
         Ad_T = np.transpose(self.adjoint())
         W_other = Ad_T @ W_[np.newaxis, :].T
         return type(W)(coords=W_other.flatten())
 
     def _transform_position(self, v: Vector) -> Vector:
-        arr1 = self._transform_angular(cast(AngularVelocity, v)).array()
+        arr1 = np.asarray(self._transform_angular(cast(AngularVelocity, v)), dtype=float)
         arr2 = np.asarray(self.origin)
         arr = arr1 + arr2
         return type(v)(arr)
@@ -404,12 +404,13 @@ def pose_rate_of_change(
     T_dot = np.zeros((4, 4))
     R_dot = orientation_rate_of_change(frame, omega, ref="parent")
     T_dot[0:3, 0:3] = R_dot
-    T_dot[0:3, 3] = v.coords
+    T_dot[0:3, 3] = v
     return T_dot
 
 
 # noinspection PyUnresolvedReferences
 def _plot_frames(frames: list[Frame], **kwargs) -> 'WorldScene':
+
     from ..visualisation import WorldScene
     from ..utils.introspection import get_valid_keyword_parameters
 

@@ -49,7 +49,7 @@ class Translation(Transformation):
         """
         self.vector = vector
         # noinspection PyArgumentList
-        self._matrix = SE3.Trans(vector.coords)
+        self._matrix = SE3.Trans(np.asarray(vector, dtype=float))
 
     @classmethod
     def from_axis(cls, axis: Axis, distance: float) -> Translation:
@@ -125,7 +125,7 @@ class Rotation(Transformation):
         R_mat = SE3.AngleAxis(self.angle, self.axis.direction, unit=self.angle_unit)
         if self.pole is not None and not self.pole.isnull():
             # noinspection PyArgumentList
-            T_mat = SE3.Trans(self.pole.array())
+            T_mat = SE3.Trans(np.asarray(self.pole, dtype=float))
             return T_mat * R_mat * T_mat.inv()
         return R_mat
 
@@ -237,7 +237,11 @@ class Screw(Transformation):
         else:
             self.pitch = pitch
             self.angle_unit = angle_unit
-            self._unit_twist = Twist3.UnitRevolute(self.axis.direction, self.pole.array(), self.pitch)
+            self._unit_twist = Twist3.UnitRevolute(
+                self.axis.direction,
+                np.asarray(self.pole, dtype=float),
+                self.pitch
+            )
             self._matrix = self._unit_twist.exp(self.magnitude, self.angle_unit)
 
     @property
@@ -404,6 +408,6 @@ def incremental_motion_approx(V: SpatialVelocity, dt: float) -> SE3:
     rotation matrix. However, if the sample rate is high (dt is small), then the
     error can be largely corrected by normalization.
     """
-    delta: NumpyArray = V.array() * dt
+    delta: NumpyArray = V * dt
     T_delta = smb.delta2tr(delta)
     return SE3(T_delta, check=False)

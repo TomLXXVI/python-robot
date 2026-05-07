@@ -414,7 +414,7 @@ class MultiLinearVectorPath(MultiPointVectorMotionProfile):
         p = piece.position(t)
         pd = piece.velocity(t)
         V = SpatialVelocity.from_pose(p, pd)
-        return V.array()
+        return np.asarray(V, dtype=float)
 
     def spatial_acceleration(self, t: float) -> NumpyArray:
         """
@@ -426,4 +426,4 @@ class MultiLinearVectorPath(MultiPointVectorMotionProfile):
         pd = piece.velocity(t)
         pdd = piece.acceleration(t)
         A = SpatialAcceleration.from_pose(p, pd, pdd)
-        return A.array()
+        return np.asarray(A, dtype=float)

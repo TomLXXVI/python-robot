@@ -4,6 +4,7 @@ import typing
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.lib.mixins import NDArrayOperatorsMixin
 import spatialmath.base as smb
 
 from .types import *
@@ -24,7 +25,80 @@ __all__ = [
 ]
 
 
-class Vector:
+class _ArrayBacked(NDArrayOperatorsMixin):
+    """
+    Provides NumPy array protocol support for vector-like value objects.
+
+    Arithmetic and NumPy ufuncs intentionally return plain NumPy arrays. That
+    avoids accidentally claiming that, for example, Force + Torque is still a
+    semantically meaningful Force or Torque.
+    """
+    __array_priority__ = 1000.0
+
+    _array: NumpyArray
+
+    def __array__(
+        self,
+        dtype: typing.Any = None,
+        copy: bool | None = None
+    ) -> NumpyArray:
+        if copy:
+            return np.array(self._array, dtype=dtype, copy=True)
+        if dtype is not None:
+            return self._array.astype(dtype, copy=False)
+        return self._array
+
+    def __array_ufunc__(
+        self,
+        ufunc: np.ufunc,
+        method: str,
+        *inputs: typing.Any,
+        **kwargs: typing.Any
+    ) -> typing.Any:
+        arrays = tuple(
+            x._array if isinstance(x, _ArrayBacked) else x
+            for x in inputs
+        )
+        if "out" in kwargs:
+            kwargs["out"] = tuple(
+                x._array if isinstance(x, _ArrayBacked) else x
+                for x in kwargs["out"]
+            )
+        return getattr(ufunc, method)(*arrays, **kwargs)
+
+    def __len__(self) -> int:
+        return len(self._array)
+
+    def __iter__(self) -> typing.Iterator[float]:
+        return iter(self._array)
+
+    def __getitem__(self, key: typing.Any) -> typing.Any:
+        return self._array[key]
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        return self._array.shape
+
+    @property
+    def ndim(self) -> int:
+        return self._array.ndim
+
+    @property
+    def size(self) -> int:
+        return self._array.size
+
+    @property
+    def dtype(self) -> np.dtype:
+        return self._array.dtype
+
+    def copy(self) -> NumpyArray:
+        return self._array.copy()
+
+    def tolist(self) -> list[float]:
+        return self._array.tolist()
+
+
+class Vector(_ArrayBacked):
     """
     Represents a Cartesian vector (x, y, z) in 3D space (starting in the
     origin of its reference frame).
@@ -161,7 +235,7 @@ class Vector:
         return f"Vector({self.x:.6g}, {self.y:.6g}, {self.z:.6g})"
 
 
-class Axis:
+class Axis(_ArrayBacked):
     """
     Represents an axis in 3D space.
 
@@ -192,6 +266,7 @@ class Axis:
             self.direction: NumpyArray = np.zeros(3)
         else:
             self.direction: NumpyArray = coords.direction
+        self._array = self.direction
 
     @classmethod
     def from_spherical(
@@ -228,7 +303,7 @@ class Axis:
         -------
         ArrayLike3
         """
-        return Vector(typing.cast(ArrayLike3, self.direction * magnitude)).coords
+        return typing.cast(ArrayLike3, self.direction * magnitude)
 
     def __rmul__(self, magnitude: float) -> ArrayLike3:
         """
@@ -239,7 +314,7 @@ class Axis:
         -------
         ArrayLike3
         """
-        return Vector(typing.cast(ArrayLike3, self.direction * magnitude)).coords
+        return typing.cast(ArrayLike3, self.direction * magnitude)
 
     def array(self, extended: bool = False) -> NumpyArray:
         """
@@ -427,7 +502,7 @@ class AngularAcceleration(Vector):
         )
 
 
-class SpatialVelocity:
+class SpatialVelocity(_ArrayBacked):
     """
     Represents the spatial velocity vector of a frame combining the
     translational velocity of its origin and the angular velocity of its
@@ -478,9 +553,7 @@ class SpatialVelocity:
         -------
         SpatialVelocity
         """
-        v_arr = v.array()
-        omega_arr = omega.array()
-        V_arr = np.hstack((v_arr, omega_arr))
+        V_arr = np.hstack((v, omega))
         return cls(V_arr)
 
     def array(self) -> NumpyArray:
@@ -545,7 +618,7 @@ class SpatialVelocity:
         return SpatialVelocity(V)
 
 
-class SpatialAcceleration:
+class SpatialAcceleration(_ArrayBacked):
     """
     Represents the spatial acceleration vector of a frame combining the
     translational acceleration of its origin and the angular acceleration of its
@@ -587,9 +660,7 @@ class SpatialAcceleration:
         -------
         SpatialAcceleration
         """
-        a_arr = a.array()
-        alpha_arr = alpha.array()
-        A_arr = np.hstack((a_arr, alpha_arr))
+        A_arr = np.hstack((a, alpha))
         return cls(A_arr)
 
     def array(self) -> NumpyArray:
@@ -700,7 +771,7 @@ class Torque(Vector):
         return cls(axis * magnitude)
 
 
-class Wrench:
+class Wrench(_ArrayBacked):
     """
     Force-torque vector combining force and torque vectors
     (F_x, F_y, F_z, Tx, Ty, Tz).
@@ -738,9 +809,7 @@ class Wrench:
         -------
         Wrench
         """
-        F_arr = F.array()
-        T_arr = T.array()
-        W_arr = np.hstack((F_arr, T_arr))
+        W_arr = np.hstack((F, T))
         return cls(W_arr)
 
     def array(self) -> NumpyArray:
