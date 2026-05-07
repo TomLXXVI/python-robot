@@ -5,6 +5,7 @@ import numpy as np
 from python_robot.base.types import ArrayLike3
 from python_robot.base import Frame
 from python_robot.visualisation import WorldScene, KinematicChainAnimator
+from python_robot.utils.introspection import get_valid_keyword_parameters
 
 from .kinematic_chain import KinematicChain
 
@@ -45,10 +46,36 @@ class KinematicChainViewer:
         -------
         WorldScene
         """
-        ws = self._create_scene(**kwargs)
+        scene_params = get_valid_keyword_parameters(
+            WorldScene.__init__,
+            exclude={"self"}
+        )
+        frame_params = get_valid_keyword_parameters(
+            WorldScene.add_frame,
+            exclude={"self", "frame"}
+        )
+
+        scene_kwargs = {
+            key: value for key, value in kwargs.items()
+            if key in scene_params
+        }
+
+        frame_kwargs = {
+            key: value for key, value in kwargs.items()
+            if key in frame_params
+        }
+
+        unknown_kwargs = set(kwargs) - scene_params - frame_params
+        if unknown_kwargs:
+            raise TypeError(
+                f"Unknown plot_frames keyword argument(s): "
+                f"{', '.join(sorted(unknown_kwargs))}"
+            )
+
+        ws = self._create_scene(**scene_kwargs)
 
         for frame in self._get_link_frames():
-            ws.add_frame(frame, scale=kwargs.get("frame_scale", 1 / self.min_link_length))
+            ws.add_frame(frame, scale=frame_kwargs.get("scale", 1 / self.min_link_length))
 
         for p1, p2 in self._get_link_endpoints():
             ws.add_link(p1=p1, p2=p2)
@@ -138,13 +165,39 @@ class KinematicChainViewer:
             Additional keyword arguments for configuration of the scene (see
             docstring of class WorldScene in scene.py).
         """
-        ws = self._create_scene(**kwargs)
+        scene_params = get_valid_keyword_parameters(
+            WorldScene.__init__,
+            exclude={"self"}
+        )
+        frame_params = get_valid_keyword_parameters(
+            WorldScene.add_frame,
+            exclude={"self", "frame"}
+        )
+
+        scene_kwargs = {
+            key: value for key, value in kwargs.items()
+            if key in scene_params
+        }
+
+        frame_kwargs = {
+            key: value for key, value in kwargs.items()
+            if key in frame_params
+        }
+
+        unknown_kwargs = set(kwargs) - scene_params - frame_params
+        if unknown_kwargs:
+            raise TypeError(
+                f"Unknown plot_frames keyword argument(s): "
+                f"{', '.join(sorted(unknown_kwargs))}"
+            )
+
+        ws = self._create_scene(**scene_kwargs)
 
         animator = KinematicChainAnimator(ws)
         animator.animate_chain_sequence(
             chain=self.kinematic_chain,
             joint_coord_sets=joint_coord_sets,
-            frame_scale=kwargs.get("frame_scale", 1 / self.min_link_length),
+            frame_scale=frame_kwargs.get("scale", 1 / self.min_link_length),
             show_frames=True,
             frame_names=None,
             fps=fps,

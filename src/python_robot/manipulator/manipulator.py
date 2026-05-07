@@ -79,7 +79,7 @@ class SerialLinkManipulator(KinematicChain):
         qd = self._check_number_of_joint_coords(joint_velocities)
         qdd = self._check_number_of_joint_coords(joint_accelerations)
 
-        q = np.asarray(self._convert_to(q), dtype=float)
+        q = np.asarray(self._convert_to_rad(q), dtype=float)
         qd = np.asarray(qd, dtype=float)
         qdd = np.asarray(qdd, dtype=float)
 

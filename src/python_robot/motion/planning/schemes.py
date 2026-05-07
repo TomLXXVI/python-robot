@@ -984,7 +984,7 @@ class _CartesianToJointSpaceConverter:
         )
         for frame in self._css._traj_frames:
             q = self._manipulator.inv_kin(frame, ini_guess=q_guess)
-            q_list.append(np.asarray(self._manipulator._convert_to(q), dtype=float))
+            q_list.append(np.asarray(self._manipulator._convert_to_rad(q), dtype=float))
             q_guess = q
 
         return np.array(q_list, dtype=float)
@@ -998,7 +998,7 @@ class _CartesianToJointSpaceConverter:
         )
         for frame in self._css._target_frames:
             q = self._manipulator.inv_kin(frame, ini_guess=q_guess)
-            q_sets.append(np.asarray(self._manipulator._convert_to(q), dtype=float))
+            q_sets.append(np.asarray(self._manipulator._convert_to_rad(q), dtype=float))
             q_guess = q
 
         if not q_sets:
