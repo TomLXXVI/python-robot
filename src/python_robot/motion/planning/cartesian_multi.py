@@ -84,14 +84,14 @@ class CartesianMultiStraightLineMotion:
         # line in 3D space, the blend time of the parabolic blends must be the
         # same for each of the "pose variables" x, y, z, rx, ry, and rz.
         self._motion_profile = MultiLinearVectorPath(
-            path_points=self.pose_vectors,
+            pose_vectors=self.pose_vectors,
             dt_segments=self.dt_segments,
             dt_blends=self.dt_blends,
         )
 
         # Time-sampling of the motion profile
         res = self._time_sampling(self._motion_profile, self.num_t_samples)
-        self._t_arr, self._p_arr, self._pd_arr, self._pdd_arr = res
+        self._t_arr, self._p_arr, self._V_arr, self._A_arr = res
 
     @staticmethod
     def _choose_equivalent_rotvec(
@@ -153,42 +153,52 @@ class CartesianMultiStraightLineMotion:
 
         return np.array(pose_vectors)
 
+    # @staticmethod
+    # def _time_sampling(
+    #     motion_profile: MultiLinearVectorPath,
+    #     n_samples: int
+    # ) -> tuple[NumpyArray, ...]:
+    #     """
+    #     Takes uniform distributed time samples of the Cartesian motion profile.
+    #
+    #     Returns
+    #     -------
+    #     t_arr: NumpyArray
+    #         The time moments at which the values of the pose vectors are
+    #         calculated.
+    #     p_arr: NumpyArray
+    #         The values of the pose vectors in the course of time. The
+    #         number of rows of the array is equal to the number of time samples.
+    #         The number of columns is equal to 6 (x, y, z, rx, ry, rz).
+    #     pd_arr: NumpyArray
+    #         The values of the pose vector velocities in the course of time. The
+    #         number of rows of the array is equal to the number of time samples.
+    #         The number of columns is equal to 6 (x_dot, y_dot, z_dot, rx_dot,
+    #         ry_dot, rz_dot).
+    #     pdd_arr: NumpyArray
+    #         The values of the pose vector accelerations in the course of time.
+    #         The number of rows of the array is equal to the number of time
+    #         samples. The number of columns is equal to 6 (x_ddot, y_ddot, z_ddot,
+    #         rx_ddot, ry_ddot, rz_ddot).
+    #     """
+    #     t_arr, p_arr = motion_profile.position_profile(n_samples)
+    #     _, pd_arr = motion_profile.velocity_profile(n_samples)
+    #     _, pdd_arr = motion_profile.acceleration_profile(n_samples)
+    #     return t_arr, p_arr, pd_arr, pdd_arr
+
     @staticmethod
     def _time_sampling(
         motion_profile: MultiLinearVectorPath,
-        n_samples: int
+        n_samples: int,
     ) -> tuple[NumpyArray, ...]:
-        """
-        Takes evenly distributed time samples of the motion profiles of the
-        joints.
-
-        Returns
-        -------
-        t_arr: NumpyArray
-            The time moments at which the values of the pose vectors are
-            calculated.
-        p_arr: NumpyArray
-            The values of the pose vectors in the course of time. The
-            number of rows of the array is equal to the number of time samples.
-            The number of columns is equal to 6 (x, y, z, rx, ry, rz).
-        pd_arr: NumpyArray
-            The values of the pose vector velocities in the course of time. The
-            number of rows of the array is equal to the number of time samples.
-            The number of columns is equal to 6 (v_x, v_y, v_z, w_x, w_y, w_z).
-        pdd_arr: NumpyArray
-            The values of the pose vector accelerations in the course of time.
-            The number of rows of the array is equal to the number of time
-            samples. The number of columns is equal to 6 (a_x, a_y, a_z,
-            alpha_x, alpha_y, alpha_z).
-        """
         t_arr, p_arr = motion_profile.position_profile(n_samples)
-        _, pd_arr = motion_profile.velocity_profile(n_samples)
-        _, pdd_arr = motion_profile.acceleration_profile(n_samples)
-        return t_arr, p_arr, pd_arr, pdd_arr
+        _, V_arr = motion_profile.spatial_velocity_profile(n_samples)
+        _, A_arr = motion_profile.acceleration_profile(n_samples)
+        return t_arr, p_arr, V_arr, A_arr
 
     def trajectory(self) -> tuple[NumpyArray, list[Frame]]:
         """
-        Returns the trajectory in Cartesian space.
+        Returns the trajectory of the end-effector frame in Cartesian space.
 
         Returns
         -------
@@ -208,32 +218,39 @@ class CartesianMultiStraightLineMotion:
     @property
     def motion_profile(self) -> MultiLinearVectorPath:
         """
-        Returns the motion profile of the end-effector frame in Cartesian space.
+        Returns the underlying motion profile of the end-effector frame in
+        Cartesian space.
         """
         return self._motion_profile
 
+    # @property
+    # def motion_samples(self) -> tuple[NumpyArray, ...]:
+    #     """
+    #     Returns time samples of the end-effector frame motion in Cartesian
+    #     space.
+    #
+    #     Returns
+    #     -------
+    #     t_arr: NumpyArray
+    #         The time moments at which the values of the pose vectors are
+    #         calculated.
+    #     p_arr: NumpyArray
+    #         The values of the pose vectors in the course of time. The
+    #         number of rows of the array is equal to the number of time samples.
+    #         The number of columns is equal to 6 (x, y, z, rx, ry, rz).
+    #     pd_arr: NumpyArray
+    #         The values of the pose vector velocities in the course of time. The
+    #         number of rows of the array is equal to the number of time samples.
+    #         The number of columns is equal to 6 (x_dot, y_dot, z_dot, rx_dot,
+    #         ry_dot, rz_dot).
+    #     pdd_arr: NumpyArray
+    #         The values of the pose vector accelerations in the course of time.
+    #         The number of rows of the array is equal to the number of time
+    #         samples. The number of columns is equal to 6 (x_ddot, y_ddot, z_ddot,
+    #         rx_ddot, ry_ddot, rz_ddot).
+    #     """
+    #     return self._t_arr, self._p_arr, self._pd_arr, self._pdd_arr
+
     @property
     def motion_samples(self) -> tuple[NumpyArray, ...]:
-        """
-        Returns samples of the end-effector motion in Cartesian space.
-
-        Returns
-        -------
-        t_arr: NumpyArray
-            The time moments at which the values of the pose vectors are
-            calculated.
-        p_arr: NumpyArray
-            The values of the pose vectors in the course of time. The
-            number of rows of the array is equal to the number of time samples.
-            The number of columns is equal to 6 (x, y, z, rx, ry, rz).
-        pd_arr: NumpyArray
-            The values of the pose vector velocities in the course of time. The
-            number of rows of the array is equal to the number of time samples.
-            The number of columns is equal to 6 (v_x, v_y, v_z, w_x, w_y, w_z).
-        pdd_arr: NumpyArray
-            The values of the pose vector accelerations in the course of time.
-            The number of rows of the array is equal to the number of time
-            samples. The number of columns is equal to 6 (a_x, a_y, a_z,
-            alpha_x, alpha_y, alpha_z).
-        """
-        return self._t_arr, self._p_arr, self._pd_arr, self._pdd_arr
+        return self._t_arr, self._p_arr, self._V_arr, self._A_arr

@@ -12,9 +12,12 @@ __all__ = [
     "Vector",
     "Axis",
     "PrincipalAxis",
-    "AngularVelocity",
     "TranslationalVelocity",
+    "AngularVelocity",
+    "TranslationalAcceleration",
+    "AngularAcceleration",
     "SpatialVelocity",
+    "SpatialAcceleration",
     "Force",
     "Torque",
     "Wrench",
@@ -154,6 +157,9 @@ class Vector:
         """
         return smb.skew(self._array)
 
+    def __str__(self) -> str:
+        return f"Vector({self.x:.6g}, {self.y:.6g}, {self.z:.6g})"
+
 
 class Axis:
     """
@@ -274,6 +280,13 @@ class PrincipalAxis:
     Z = Axis([0, 0, 1])
 
 
+class TranslationalVelocity(Vector):
+    """
+    Represents a translational velocity vector (v_x, v_y, v_z).
+    """
+    pass
+
+
 class AngularVelocity(Vector):
     """
     Represents an angular velocity vector (omega_x, omega_y, omega_z).
@@ -314,12 +327,104 @@ class AngularVelocity(Vector):
             magnitude = angular_speed
         return cls(axis * magnitude)
 
+    @staticmethod
+    def jacobian(r: ArrayLike3) -> NumpyArray:
+        """
+        Calculates the analytical Jacobian that maps the time derivative of a
+        rotation vector or angle-axis vector (aka the exponential coordinates of
+        a rotation matrix) to angular velocity.
 
-class TranslationalVelocity(Vector):
+        omega = J(r) * r_dot
+
+        Parameters
+        ----------
+        r : ArrayLike3
+            Rotation vector.
+
+        Returns
+        -------
+        NumpyArray
+            (3 x 3) analytical Jacobian matrix.
+        """
+        r: NumpyArray = np.asarray(r, dtype=float)
+        theta = float(np.linalg.norm(r))
+        S = smb.skew(r)
+
+        if np.isclose(theta, 0.0):
+            return np.eye(3) + 0.5 * S
+
+        return (
+            np.eye(3)
+            + (1.0 - np.cos(theta)) / theta ** 2 * S
+            + (theta - np.sin(theta)) / theta ** 3 * (S @ S)
+        )
+
+
+class TranslationalAcceleration(Vector):
     """
-    Represents a translational velocity vector (v_x, v_y, v_z).
+    Represents a translational acceleration vector (a_x, a_y, a_z).
     """
     pass
+
+
+class AngularAcceleration(Vector):
+    """
+    Represents an angular acceleration vector (alpha_x, alpha_y, alpha_z).
+    """
+    @staticmethod
+    def jacobian_dot(r: ArrayLike3, r_dot: ArrayLike3) -> NumpyArray:
+        """
+        Time derivative of the analytical Jacobian that maps the first and
+        second time derivatives of a rotation vector or angle-axis vector to
+        angular acceleration.
+
+        omega = J(r) * r_dot
+        =>
+        alpha = d(omega)/dt = J(r) * r_ddot + J_dot(r, r_dot) * r_dot
+
+        Parameters
+        ----------
+        r: ArrayLike3
+            Rotation vector.
+        r_dot: ArrayLike3
+            First time derivative of the rotation vector.
+
+        Returns
+        -------
+        NumpyArray
+            (3 x 3) time derivative of the analytical Jacobian matrix.
+        """
+        r: NumpyArray = np.asarray(r, dtype=float)
+        r_dot: NumpyArray = np.asarray(r_dot, dtype=float)
+
+        theta = float(np.linalg.norm(r))
+        S_dot = smb.skew(r_dot)
+
+        if np.isclose(theta, 0.0):
+            return 0.5 * S_dot
+
+        theta_dot = float(r @ r_dot) / theta
+        S = smb.skew(r)
+
+        A = (1.0 - np.cos(theta)) / theta ** 2
+        B = (theta - np.sin(theta)) / theta ** 3
+
+        A_dot = (
+            theta_dot
+            * (theta * np.sin(theta) - 2.0 * (1.0 - np.cos(theta)))
+            / theta ** 3
+        )
+        B_dot = (
+            theta_dot
+            * (theta * (1.0 - np.cos(theta)) - 3.0 * (theta - np.sin(theta)))
+            / theta ** 4
+        )
+        return (
+            A_dot * S
+            + A * S_dot
+            + B_dot * (S @ S)
+            + B * (S_dot @ S + S @ S_dot)
+        )
 
 
 class SpatialVelocity:
@@ -409,6 +514,120 @@ class SpatialVelocity:
         AngularVelocity
         """
         return self._omega
+
+    @classmethod
+    def from_pose(
+        cls,
+        p: ArrayLike6,
+        p_dot: ArrayLike6
+    ) -> SpatialVelocity:
+        v = np.asarray(p_dot[:3], dtype=float)
+        r = np.asarray(p[3:], dtype=float)
+        r_dot = np.asarray(p_dot[3:], dtype=float)
+        omega = AngularVelocity.jacobian(r) @ r_dot
+        V = np.concatenate((v, omega))
+        return SpatialVelocity(V)
+
+
+class SpatialAcceleration:
+    """
+    Represents the spatial acceleration vector of a frame combining the
+    translational acceleration of its origin and the angular acceleration of its
+    orientation: (a_x, a_y, a_z, alpha_x, alpha_y, alpha_z).
+
+    Attributes
+    ----------
+    coords : ArrayLike6
+        Coordinates of the spatial acceleration vector. By convention, the first
+        three coordinates represent the translational acceleration of the
+        frame's origin and the last three coordinates represent the angular
+        acceleration of the frame.
+    """
+    def __init__(self, coords: ArrayLike6) -> None:
+        self.coords = coords
+        self._array: NumpyArray = np.asarray(self.coords, dtype=float)
+        self._a = TranslationalAcceleration(self._array[0:3])
+        self._alpha = AngularAcceleration(self._array[3:6])
+
+    @classmethod
+    def from_components(
+        cls,
+        a: TranslationalAcceleration,
+        alpha: AngularAcceleration
+    ) -> SpatialAcceleration:
+        """
+        Creates a spatial acceleration vector from the given components.
+
+        Parameters
+        ----------
+        a : TranslationalAcceleration
+            The translational acceleration component of the spatial acceleration
+            vector.
+        alpha : AngularAcceleration
+            The angular acceleration component of the spatial acceleration
+            vector.
+
+        Returns
+        -------
+        SpatialAcceleration
+        """
+        a_arr = a.array()
+        alpha_arr = alpha.array()
+        A_arr = np.hstack((a_arr, alpha_arr))
+        return cls(A_arr)
+
+    def array(self) -> NumpyArray:
+        """
+        Returns the NumPy array representation of the spatial acceleration
+        vector.
+
+        Returns
+        -------
+        NumpyArray
+        """
+        return self._array
+
+    @property
+    def a(self) -> TranslationalAcceleration:
+        """
+        Returns the translational acceleration component of the spatial
+        acceleration.
+
+        Returns
+        -------
+        TranslationalAcceleration
+        """
+        return self._a
+
+    @property
+    def alpha(self) -> AngularAcceleration:
+        """
+        Returns the angular acceleration component of the spatial acceleration.
+
+        Returns
+        -------
+        AngularAcceleration
+        """
+        return self._alpha
+
+    @classmethod
+    def from_pose(
+        cls,
+        p: ArrayLike6,
+        p_dot: ArrayLike6,
+        p_ddot: ArrayLike6
+    ) -> SpatialAcceleration:
+        a = np.asarray(p_ddot[:3], dtype=float)
+        r = np.asarray(p[3:], dtype=float)
+        r_dot = np.asarray(p_dot[3:], dtype=float)
+        r_ddot = np.asarray(p_ddot[3:], dtype=float)
+
+        J = AngularVelocity.jacobian(r)
+        J_dot = AngularAcceleration.jacobian_dot(r, r_dot)
+
+        alpha = J @ r_ddot + J_dot * r_dot
+        A = np.concatenate((a, alpha))
+        return SpatialAcceleration(A)
 
 
 class Force(Vector):

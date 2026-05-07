@@ -26,6 +26,14 @@ class MultiPointVectorMotionProfile(ABC):
     def acceleration(self, t: float) -> NumpyArray:
         pass
 
+    @abstractmethod
+    def spatial_velocity(self, t: float) -> NumpyArray:
+        pass
+
+    @abstractmethod
+    def spatial_acceleration(self, t: float) -> NumpyArray:
+        pass
+
     def position_profile(self, n_samples: int = 100) -> tuple[NumpyArray, NumpyArray]:
         """
         Returns the sampled position profile of the vector-valued path.
@@ -49,6 +57,22 @@ class MultiPointVectorMotionProfile(ABC):
         t_arr = np.linspace(0.0, self.dt_tot, n_samples)
         a_arr = np.array([self.acceleration(t) for t in t_arr])
         return t_arr, a_arr
+
+    def spatial_velocity_profile(self, n_samples: int = 100) -> tuple[NumpyArray, NumpyArray]:
+        """
+        Returns the sampled spatial velocity profile of the vector-valued path.
+        """
+        t_arr = np.linspace(0.0, self.dt_tot, n_samples)
+        V_arr = np.array([self.spatial_velocity(t) for t in t_arr])
+        return t_arr, V_arr
+
+    def spatial_acceleration_profile(self, n_samples: int = 100) -> tuple[NumpyArray, NumpyArray]:
+        """
+        Returns the sampled spatial acceleration profile of the vector-valued path.
+        """
+        t_arr = np.linspace(0.0, self.dt_tot, n_samples)
+        A_arr = np.array([self.spatial_acceleration(t) for t in t_arr])
+        return t_arr, A_arr
 
     def plot_position_profile(self, n_samples: int = 100):
         """
@@ -109,6 +133,102 @@ class MultiPointVectorMotionProfile(ABC):
             def add_data(self) -> None:
                 t_arr, v_arr = parent.velocity_profile(n_samples)
                 self.top_chart.add_xy_data(
+                    label="x_dot",
+                    x1_values=t_arr,
+                    y1_values=v_arr[:, 0]
+                )
+                self.top_chart.add_xy_data(
+                    label="y_dot",
+                    x1_values=t_arr,
+                    y1_values=v_arr[:, 1]
+                )
+                self.top_chart.add_xy_data(
+                    label="z_dot",
+                    x1_values=t_arr,
+                    y1_values=v_arr[:, 2]
+                )
+                self.bottom_chart.add_xy_data(
+                    label="rx_dot",
+                    x1_values=t_arr,
+                    y1_values=v_arr[:, 3]
+                )
+                self.bottom_chart.add_xy_data(
+                    label="ry_dot",
+                    x1_values=t_arr,
+                    y1_values=v_arr[:, 4]
+                )
+                self.bottom_chart.add_xy_data(
+                    label="rz_dot",
+                    x1_values=t_arr,
+                    y1_values=v_arr[:, 5]
+                )
+                self.bottom_chart.x1.add_title("time, s")
+                self.top_chart.y1.add_title("linear velocity")
+                self.bottom_chart.y1.add_title("angular velocity")
+                self.top_chart.add_legend(anchor="lower center", position=(0.5, 1.05), columns=3)
+                self.bottom_chart.add_legend(anchor="upper center", position=(0.5, -0.25), columns=3)
+
+        return PlotVelocityProfile()
+
+    def plot_acceleration_profile(self, n_samples: int = 100):
+        """
+        Returns a wrapper object with two LineChart objects showing the linear
+        and angular acceleration profiles of the motion path. Call method show()
+        on this wrapper object to display the plots.
+        """
+        parent = self
+        class PlotAccelerationProfile(_CompositeLineChart):
+            def add_data(self) -> None:
+                t_arr, a_arr = parent.acceleration_profile(n_samples)
+                self.top_chart.add_xy_data(
+                    label="x_ddot",
+                    x1_values=t_arr,
+                    y1_values=a_arr[:, 0]
+                )
+                self.top_chart.add_xy_data(
+                    label="y_ddot",
+                    x1_values=t_arr,
+                    y1_values=a_arr[:, 1]
+                )
+                self.top_chart.add_xy_data(
+                    label="z_ddot",
+                    x1_values=t_arr,
+                    y1_values=a_arr[:, 2]
+                )
+                self.bottom_chart.add_xy_data(
+                    label="rx_ddot",
+                    x1_values=t_arr,
+                    y1_values=a_arr[:, 3]
+                )
+                self.bottom_chart.add_xy_data(
+                    label="ry_dot",
+                    x1_values=t_arr,
+                    y1_values=a_arr[:, 4]
+                )
+                self.bottom_chart.add_xy_data(
+                    label="rz_ddot",
+                    x1_values=t_arr,
+                    y1_values=a_arr[:, 5]
+                )
+                self.bottom_chart.x1.add_title("time, s")
+                self.top_chart.y1.add_title("linear acceleration")
+                self.bottom_chart.y1.add_title("angular acceleration")
+                self.top_chart.add_legend(anchor="lower center", position=(0.5, 1.05), columns=3)
+                self.bottom_chart.add_legend(anchor="upper center", position=(0.5, -0.25), columns=3)
+
+        return PlotAccelerationProfile()
+
+    def plot_spatial_velocity_profile(self, n_samples: int = 100):
+        """
+        Returns a wrapper object with two LineChart objects showing the linear
+        and angular velocity profiles of the motion path.
+        Call method show() on this wrapper object to display the plots.
+        """
+        parent = self
+        class PlotSpatialVelocityProfile(_CompositeLineChart):
+            def add_data(self) -> None:
+                t_arr, v_arr = parent.spatial_velocity_profile(n_samples)
+                self.top_chart.add_xy_data(
                     label="v_x",
                     x1_values=t_arr,
                     y1_values=v_arr[:, 0]
@@ -144,18 +264,18 @@ class MultiPointVectorMotionProfile(ABC):
                 self.top_chart.add_legend(anchor="lower center", position=(0.5, 1.05), columns=3)
                 self.bottom_chart.add_legend(anchor="upper center", position=(0.5, -0.25), columns=3)
 
-        return PlotVelocityProfile()
+        return PlotSpatialVelocityProfile()
 
-    def plot_acceleration_profile(self, n_samples: int = 100):
+    def plot_spatial_acceleration_profile(self, n_samples: int = 100):
         """
         Returns a wrapper object with two LineChart objects showing the linear
-        and angular acceleration profiles of the motion path. Call method show()
-        on this wrapper object to display the plots.
+        and angular acceleration profiles of the motion path.
+        Call method show() on this wrapper object to display the plots.
         """
         parent = self
-        class PlotAccelerationProfile(_CompositeLineChart):
+        class PlotSpatialAccelerationProfile(_CompositeLineChart):
             def add_data(self) -> None:
-                t_arr, a_arr = parent.acceleration_profile(n_samples)
+                t_arr, a_arr = parent.spatial_acceleration_profile(n_samples)
                 self.top_chart.add_xy_data(
                     label="a_x",
                     x1_values=t_arr,
@@ -192,7 +312,7 @@ class MultiPointVectorMotionProfile(ABC):
                 self.top_chart.add_legend(anchor="lower center", position=(0.5, 1.05), columns=3)
                 self.bottom_chart.add_legend(anchor="upper center", position=(0.5, -0.25), columns=3)
 
-        return PlotAccelerationProfile()
+        return PlotSpatialAccelerationProfile()
 
 
 class _CompositeLineChart(ABC):

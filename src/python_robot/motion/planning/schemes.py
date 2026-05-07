@@ -430,12 +430,11 @@ class CartesianSpaceScheme:
         self,
         t_arr: NumpyArray,
         traj_frames: list[Frame],
-        *,
         target_frames: Sequence[Frame] | None = None,
         dt_segments: Sequence[float] | None = None,
         p_arr: NumpyArray | None = None,
-        pd_arr: NumpyArray | None = None,
-        pdd_arr: NumpyArray | None = None,
+        V_arr: NumpyArray | None = None,
+        A_arr: NumpyArray | None = None,
     ) -> None:
         self._t_arr = t_arr
         self._traj_frames = traj_frames
@@ -444,8 +443,8 @@ class CartesianSpaceScheme:
         self.dt_segments = list(dt_segments) if dt_segments is not None else []
 
         self._p_arr = p_arr
-        self._pd_arr = pd_arr
-        self._pdd_arr = pdd_arr
+        self._V_arr = V_arr
+        self._A_arr = A_arr
 
         self._traj_viewer = _CartesianTrajectoryPlotter(self)
         self._tables = _CartesianMotionTables(self)
@@ -455,7 +454,6 @@ class CartesianSpaceScheme:
         cls,
         target_frames: Sequence[Frame],
         dt_segments: Sequence[float],
-        *,
         dt_blends: float | Sequence[float] = 0.1,
         num_t_samples: int = 100
     ) -> CartesianSpaceScheme:
@@ -484,8 +482,7 @@ class CartesianSpaceScheme:
             dt_blends, num_t_samples
         )
         t_arr, traj_frames = cm.trajectory()
-
-        _, p_arr, pd_arr, pdd_arr = cm.motion_samples
+        _, p_arr, V_arr, A_arr = cm.motion_samples
 
         return cls(
             t_arr=t_arr,
@@ -493,8 +490,8 @@ class CartesianSpaceScheme:
             target_frames=target_frames,
             dt_segments=dt_segments,
             p_arr=p_arr,
-            pd_arr=pd_arr,
-            pdd_arr=pdd_arr,
+            V_arr=V_arr,
+            A_arr=A_arr,
         )
 
     def to_joint_space(
@@ -515,12 +512,17 @@ class CartesianSpaceScheme:
             manipulator are used. Each following target frame uses the previous
             inverse-kinematics solution as its initial guess.
         """
-        converter = _CartesianToJointSpaceConverter(
-            css=self,
-            manipulator=manipulator,
-            ini_guess=ini_guess,
+        if self._V_arr is not None and self._A_arr is not None:
+            converter = _CartesianToJointSpaceConverter(
+                css=self,
+                manipulator=manipulator,
+                ini_guess=ini_guess,
+            )
+            return converter.convert()
+        raise ValueError(
+            "Joint-space scheme cannot be created. "
+            "Spatial velocity and acceleration are not available."
         )
-        return converter.convert()
 
     @classmethod
     def from_joint_space(cls, jss: JointSpaceScheme) -> CartesianSpaceScheme:
@@ -782,63 +784,6 @@ class _CartesianToJointSpaceConverter:
         self._manipulator = manipulator
         self._ini_guess = ini_guess
 
-    @staticmethod
-    def _skew(v: NumpyArray) -> NumpyArray:
-        return np.array([
-            [0.0, -v[2], v[1]],
-            [v[2], 0.0, -v[0]],
-            [-v[1], v[0], 0.0],
-        ])
-
-    @classmethod
-    def _so3_left_jacobian(cls, rotvec: NumpyArray) -> NumpyArray:
-        theta = float(np.linalg.norm(rotvec))
-        S = cls._skew(rotvec)
-
-        if np.isclose(theta, 0.0):
-            return np.eye(3) + 0.5 * S
-
-        return (
-            np.eye(3)
-            + (1.0 - np.cos(theta)) / theta**2 * S
-            + (theta - np.sin(theta)) / theta**3 * (S @ S)
-        )
-
-    @classmethod
-    def _pd_to_V(cls, p: NumpyArray, pd: NumpyArray) -> NumpyArray:
-        """Converts pose vector velocity to spatial velocity."""
-        v = pd[:3]
-        omega = cls._so3_left_jacobian(p[3:]) @ pd[3:]
-        return np.concatenate((v, omega))
-
-    def _spatial_velocity_samples(self) -> NumpyArray:
-        if self._css._p_arr is None or self._css._pd_arr is None:
-            raise ConfigurationError(
-                "Cartesian pose-vector velocities are not available for this scheme."
-            )
-        return np.array([
-            self._pd_to_V(p, pd)
-            for p, pd in zip(self._css._p_arr, self._css._pd_arr)
-        ])
-
-    def _spatial_acceleration_samples(self, V_arr: NumpyArray) -> NumpyArray:
-        if self._css._pdd_arr is None:
-            raise ConfigurationError(
-                "Cartesian pose-vector accelerations are not available for this scheme."
-            )
-
-        A_arr = np.empty_like(V_arr)
-        A_arr[:, :3] = self._css._pdd_arr[:, :3]
-
-        edge_order = 2 if len(self._css._t_arr) > 2 else 1
-        A_arr[:, 3:] = np.gradient(
-            V_arr[:, 3:],
-            self._css._t_arr,
-            axis=0,
-            edge_order=edge_order,  # type: ignore
-        )
-        return A_arr
-
     def _trajectory_joint_coords(self) -> NumpyArray:
         q_list = []
         q_guess = (
@@ -911,8 +856,14 @@ class _CartesianToJointSpaceConverter:
 
         # Get the spatial velocity and spatial acceleration of the trajectory
         # frames.
-        V_arr = self._spatial_velocity_samples()
-        A_arr = self._spatial_acceleration_samples(V_arr)
+        if self._css._V_arr is not None and self._css._A_arr is not None:
+            V_arr = self._css._V_arr
+            A_arr = self._css._A_arr
+        else:
+            raise ValueError(
+                "Joint-space scheme cannot be created. "
+                "Spatial velocity and acceleration are not available."
+            )
 
         # Given the spatial velocities of the trajectory frames, calculate the
         # corresponding velocities of the manipulator's joints.

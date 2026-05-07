@@ -14,6 +14,8 @@ __all__ = [
     "WREF_FRAME",
     "orientation_rate_of_change",
     "pose_rate_of_change",
+    "plot_frames",
+    "plot_frames_async"
 ]
 
 
@@ -46,9 +48,10 @@ class Frame:
             frame.
         orient_angles : ArrayLike3
             Defines the orientation of the frame in space by three angles. The
-            first angle is the rotation angle about the X-axis, the second angle
-            about the Y-axis, and the third angle about the Z-axis. The sign of
-            the angles is determined by the right-hand rule.
+            first angle is the rotation angle about the X-axis (roll angle), the
+            second angle about the Y-axis (pitch angle), and the third angle
+            about the Z-axis (yaw angle). The sign of the angles is determined
+            by the right-hand rule.
         angle_unit : Literal["deg", "rad"], default = "rad"
             Unit of the orientation angles.
         """
@@ -403,3 +406,59 @@ def pose_rate_of_change(
     T_dot[0:3, 0:3] = R_dot
     T_dot[0:3, 3] = v.coords
     return T_dot
+
+
+# noinspection PyUnresolvedReferences
+def _plot_frames(frames: list[Frame], **kwargs) -> 'WorldScene':
+    from ..visualisation import WorldScene
+
+    ws = WorldScene(**kwargs)
+    ws.camera.enable_view_shortcuts()
+    ws.add_plane_grid()
+    ws.add_world_frame()
+
+    for frame in frames:
+        ws.add_frame(frame, **kwargs)
+
+    return ws
+
+
+def plot_frames(frames: list[Frame], **kwargs) -> None:
+    """
+    Plots the frames in 3D-space.
+
+    Parameters
+    ----------
+    frames: list[Frame]
+        List of frames to plot.
+    kwargs:
+        Additional keyword arguments for setting up the plot.
+
+    Returns
+    -------
+    None
+    """
+    ws = _plot_frames(frames, **kwargs)
+    ws.show()
+
+
+
+async def plot_frames_async(frames: list[Frame], **kwargs) -> None:
+    """
+    Plots the frames in 3D-space.
+
+    Use this function in Jupyter notebooks.
+
+    Parameters
+    ----------
+    frames: list[Frame]
+        List of frames to plot.
+    kwargs:
+        Additional keyword arguments for setting up the plot.
+
+    Returns
+    -------
+    None
+    """
+    ws = _plot_frames(frames, **kwargs)
+    await ws.show_async()
