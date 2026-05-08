@@ -7,7 +7,7 @@ import numpy as np
 
 from ..base import Frame
 from ..base.types import NumpyArray
-from ..manipulator import IKSolverSpec, KinematicChainViewer, SerialLinkManipulator
+from ..manipulator import KinematicChainViewer, SerialLinkManipulator
 from ..manipulator.links import LinkDynamicParams
 from ..manipulator.links.ets import PrismaticETSLink
 
@@ -100,13 +100,15 @@ class XYZGantry(SerialLinkManipulator):
         self,
         ee_frame: Frame,
         ini_guess: Sequence[float] | None = None,
-        which_solver: IKSolverSpec = "LM",
+        which_solver: str = "analytic",
         **kwargs,
     ) -> NumpyArray:
-        return super().inv_kin(
-            ee_frame=ee_frame,
-            ini_guess=ini_guess,
-            which_solver=which_solver,
-            mask=[1, 1, 1, 0, 0, 0],
-            **kwargs,
-        )
+        """
+        Returns the XYZ joint coordinates for a desired end-effector frame.
+
+        For a Cartesian gantry, inverse kinematics is direct: the prismatic
+        joint coordinates are the end-effector origin coordinates.
+        """
+        if ini_guess is not None and len(ini_guess) != len(self):
+            raise ValueError("'len(ini_guess)' is different from the number of joints.")
+        return self.inv_kin_analytic(ee_frame)

@@ -9,6 +9,7 @@ from ...manipulator import SerialLinkManipulator, ConfigurationError
 from ...charts import LineChart, CompositeLineChart
 from ...visualisation import WorldScene
 from ...utils import array_to_table
+from ...utils.introspection import get_valid_keyword_parameters
 from .joint_multi import JointSpaceMotion, MultiPointMotionProfile, MultiPointMotionProfileType
 from .cartesian_multi import CartesianMultiStraightLineMotion
 
@@ -1089,7 +1090,9 @@ class _CartesianTrajectoryPlotter:
 
     @staticmethod
     def _create_scene(**kwargs) -> WorldScene:
-        scene = WorldScene(**kwargs)
+        scene_params = get_valid_keyword_parameters(WorldScene.__init__, exclude={"self"})
+        scene_kwargs = {k: v for k, v in kwargs.items() if k in scene_params}
+        scene = WorldScene(**scene_kwargs)
         scene.camera.enable_view_shortcuts()
         scene.add_plane_grid()
         scene.add_world_frame()
@@ -1196,6 +1199,8 @@ class _CartesianTrajectoryPlotter:
 
         if frame_step < 1:
             raise ValueError("frame_step must be at least 1.")
+
+
 
         scene = self._create_scene(**kwargs)
 

@@ -395,12 +395,6 @@ class KinematicChain(AbstractKinematicChain):
         -------
         Frame
         """
-        # if joint_coords is not None:
-        #     joint_coords = self._check_number_of_joint_coords(joint_coords)
-        #     new_chain = self.get_joint_configuration(joint_coords)
-        #     return new_chain.pose(-1)
-        # else:
-        #     return self.pose(-1)
         if joint_coords is not None:
             joint_coords = self._check_number_of_joint_coords(joint_coords)
             joint_coords = self._convert_to_rad(joint_coords)  # type: ignore

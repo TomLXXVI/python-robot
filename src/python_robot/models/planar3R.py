@@ -59,7 +59,6 @@ class Planar3R(SerialLinkManipulator):
         links = self._create_links()
 
         super().__init__(links)
-        self._viewer = KinematicChainViewer(self)
 
     @staticmethod
     def _normalize_point_masses(point_masses: Sequence[float] | None) -> tuple[float, ...]:
@@ -96,15 +95,15 @@ class Planar3R(SerialLinkManipulator):
     def _create_links(self) -> list[ModifiedLinkRevolute]:
         # All links have angles in radians.
 
-        def _create_point_mass_dynamics(self) -> list[LinkDynamicParams]:
-            link_lengths = (0.0, self.l1, self.l2)
+        def _create_point_mass_dynamics(self_) -> list[LinkDynamicParams]:
+            link_lengths = (0.0, self_.l1, self_.l2)
             return [
                 LinkDynamicParams(
                     mass=mass,
                     center_of_mass=(length, 0.0, 0.0),
                     inertia=np.zeros((3, 3)),
                 )
-                for mass, length in zip(self.point_masses, link_lengths)
+                for mass, length in zip(self_.point_masses, link_lengths)
             ]
 
         dynamics = _create_point_mass_dynamics(self)
@@ -217,73 +216,3 @@ class Planar3R(SerialLinkManipulator):
         jac_dot = super().jacobian_dot(joint_coords, joint_velocities, representation)
         M = jac_dot[[0, 1, -1], :]
         return M
-
-    def plot(self, **kwargs) -> None:
-        """
-        Plots the current joint configuration of the kinematic chain in
-        3D-space.
-
-        Parameters
-        ----------
-        **kwargs:
-            Additional keyword arguments for 3D scene configuration (for details
-            see docstring of class WorldScene in visualisation.scene.py).
-
-        Returns
-        -------
-        None
-        """
-        self._viewer.plot(**kwargs)
-
-    async def plot_async(self, **kwargs) -> None:
-        """
-        Plots the current joint-and-links configuration of the kinematic chain in
-        3D-space.
-
-        This is an asynchronous version of the plot method that can be used in
-        Jupyter notebooks. (When calling this function, you need keyword await
-        in front of the method call.)
-
-        Parameters
-        ----------
-        kwargs: dict
-            Additional keyword arguments for scene configuration (for details
-            see docstring of class WorldScene  in visualisation.scene.py).
-
-        Returns
-        -------
-        None
-        """
-        await self._viewer.plot_async(**kwargs)
-
-    def animate(
-        self,
-        joint_angle_sets: Sequence[Sequence[float]],
-        fps: int = 20,
-        step: int = 1,
-        gif_path: str | None = None,
-        mp4_path: str | None = None,
-        show: bool = True,
-        show_ee_path: bool = False,
-        ee_path_color: str = "orange",
-        ee_path_line_width: float = 3.0,
-        **kwargs
-    ) -> None:
-        """
-        Animate a sequence of manipulator joint configurations.
-
-        For info about the parameters of this function, see the docstring of
-        `manipulator.visualisation.KinematicChainViewer`.
-        """
-        self._viewer.animate(
-            joint_coord_sets=joint_angle_sets,
-            fps=fps,
-            step=step,
-            gif_path=gif_path,
-            mp4_path=mp4_path,
-            show=show,
-            show_ee_path=show_ee_path,
-            ee_path_color=ee_path_color,
-            ee_path_line_width=ee_path_line_width,
-            **kwargs
-        )

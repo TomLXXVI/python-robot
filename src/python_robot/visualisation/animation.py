@@ -305,7 +305,7 @@ class KinematicChainAnimator(FrameAnimator):
         link_line_width: float = 5.0,
         show_frames: bool = True,
         frame_names: Sequence[str] | None = None,
-        show_world_frame: bool = False,
+        show_world_frame: bool = True,
         fps: int = 20,
         step: int = 1,
         gif_path: str | Path | None = None,
@@ -336,7 +336,7 @@ class KinematicChainAnimator(FrameAnimator):
             If True, draw the local links frames.
         frame_names : Sequence[str] | None, default=None
             Optional names for the links frames.
-        show_world_frame : bool, default=False
+        show_world_frame : bool, default=True
             If True, add the world frame before the animation starts.
         fps : int, default=20
             Playback rate.

@@ -169,25 +169,23 @@ class KinematicChainViewer:
             WorldScene.__init__,
             exclude={"self"}
         )
-        frame_params = get_valid_keyword_parameters(
-            WorldScene.add_frame,
-            exclude={"self", "frame"}
+        animator_params = get_valid_keyword_parameters(
+            KinematicChainAnimator.animate_chain_sequence,
+            exclude={"self"}
         )
-
         scene_kwargs = {
             key: value for key, value in kwargs.items()
             if key in scene_params
         }
-
-        frame_kwargs = {
+        animator_kwargs = {
             key: value for key, value in kwargs.items()
-            if key in frame_params
+            if key in animator_params
         }
 
-        unknown_kwargs = set(kwargs) - scene_params - frame_params
+        unknown_kwargs = set(kwargs) - scene_params - animator_params
         if unknown_kwargs:
             raise TypeError(
-                f"Unknown plot_frames keyword argument(s): "
+                f"Unknown keyword argument(s): "
                 f"{', '.join(sorted(unknown_kwargs))}"
             )
 
@@ -197,8 +195,9 @@ class KinematicChainViewer:
         animator.animate_chain_sequence(
             chain=self.kinematic_chain,
             joint_coord_sets=joint_coord_sets,
-            frame_scale=frame_kwargs.get("scale", 1 / self.min_link_length),
-            show_frames=True,
+            frame_scale=animator_kwargs.get("frame_scale", 1 / self.min_link_length),
+            link_line_width=animator_kwargs.get("link_line_width", 5.0),
+            show_frames=animator_kwargs.get("show_frames", True),
             frame_names=None,
             fps=fps,
             step=step,
