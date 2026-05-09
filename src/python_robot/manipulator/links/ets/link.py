@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from roboticstoolbox import ET, ETS
-from roboticstoolbox import Link as RTBLink
+from roboticstoolbox import Link as RBTLink
 
 from python_robot.base.types import AngleUnit, NumpyArray
 from python_robot.base import Frame
@@ -50,8 +50,8 @@ class AbstractETSLink(AbstractLink, ABC):
         self.theta_z = self._set_theta(theta_z, angle_unit)
 
         self.et_seq = self._get_et_sequence()
-        self._rtb_link = RTBLink(self.ets, **self._rtb_q_lim_kwargs())
-        self._apply_dynamics_to_rtb_link(self._rtb_link)
+        self._rbt_link = RBTLink(self.ets, **self._rbt_q_lim_kwargs())
+        self._apply_dynamics_to_rbt_link(self._rbt_link)
 
     def _set_theta(self, theta: float | None, angle_unit: AngleUnit | None) -> float | None:
         if theta is not None and (angle_unit == "deg" or self.defaults.angle_unit == "deg"):
@@ -80,15 +80,15 @@ class AbstractETSLink(AbstractLink, ABC):
         return ETS(list(self.et_seq))
 
     @property
-    def rtb_link(self) -> RTBLink:
+    def rbt_link(self) -> RBTLink:
         """
         Returns the underlying Link object from Robotics Toolbox.
         """
-        return self._rtb_link
+        return self._rbt_link
 
     def _get_frame(self) -> Frame:
-        if self._rtb_link is not None and self._variable is not None:
-            SE3_mat = self._rtb_link.A(self._variable)
+        if self._rbt_link is not None and self._variable is not None:
+            SE3_mat = self._rbt_link.A(self._variable)
             return Frame.from_matrix(SE3_mat, angle_unit="rad")
         raise ValueError("link is not configured.")
 

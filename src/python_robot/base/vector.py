@@ -419,7 +419,7 @@ class AngularVelocity(Vector):
         Returns
         -------
         NumpyArray
-            (3 x 3) analytical Jacobian matrix.
+            The (3 x 3) analytical Jacobian matrix.
         """
         r: NumpyArray = np.asarray(r, dtype=float)
         theta = float(np.linalg.norm(r))

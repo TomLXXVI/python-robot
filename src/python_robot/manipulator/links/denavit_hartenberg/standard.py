@@ -5,6 +5,7 @@ Link frames are placed at the far (distal) end of each link.
 """
 from typing import Sequence
 
+import numpy as np
 from roboticstoolbox import RevoluteDH, PrismaticDH
 
 from python_robot.base.types import AngleUnit, NumpyArray
@@ -22,6 +23,7 @@ class StandardRevoluteDHLink(AbstractRevoluteDHLink):
         length: float,
         twist: float,
         offset: float,
+        zero_joint_angle: float = 0.0,
         angle_unit: AngleUnit | None = None,
         dynamics: LinkDynamicParams | None = None,
         q_lim: Sequence[float] | NumpyArray | None = None,
@@ -37,6 +39,8 @@ class StandardRevoluteDHLink(AbstractRevoluteDHLink):
             Twist angle of this link.
         offset: float
             Link offset with respect to the next link.
+        zero_joint_angle: float, default = 0.0
+            Joint angle when the manipulator is in the "zero-joint" shape.
         angle_unit: AngleUnit | None, optional
             The unit used for *all* type of angles (twist angle and joint angle)
             entered by the user (either "deg" or "rad").
@@ -51,10 +55,14 @@ class StandardRevoluteDHLink(AbstractRevoluteDHLink):
             converted to radians internally.
         """
         super().__init__(length, twist, offset, angle_unit, dynamics, q_lim)
-        self._rtb_link: RevoluteDH = RevoluteDH(
-            self._offset, self.length, self.twist, **self._rtb_q_lim_kwargs()
-        )  #type: ignore
-        self._apply_dynamics_to_rtb_link(self._rtb_link)
+        self._rbt_link: RevoluteDH = RevoluteDH(
+            d=self._offset,  # type: ignore
+            a=self.length,
+            alpha=self.twist,
+            offset=np.deg2rad(zero_joint_angle) if angle_unit == "deg" else zero_joint_angle,
+            **self._rbt_q_lim_kwargs()
+        )
+        self._apply_dynamics_to_rbt_link(self._rbt_link)
 
 
 class StandardPrismaticDHLink(AbstractPrismaticDHLink):
@@ -64,6 +72,7 @@ class StandardPrismaticDHLink(AbstractPrismaticDHLink):
         length: float,
         twist: float,
         angle: float,
+        zero_joint_offset: float = 0.0,
         angle_unit: AngleUnit | None = None,
         dynamics: LinkDynamicParams | None = None,
         q_lim: Sequence[float] | NumpyArray | None = None,
@@ -79,6 +88,9 @@ class StandardPrismaticDHLink(AbstractPrismaticDHLink):
             Twist angle of this link.
         angle: float
             Fixed joint angle with respect to the next link.
+        zero_joint_offset: float, default = 0.0
+            The offset distance when the manipulator is in the "zero-joint" 
+            shape.
         angle_unit: AngleUnit | None, optional
             The unit used for *all* type of angles (twist angle and joint angle)
             entered by the user (either "deg" or "rad").
@@ -92,10 +104,14 @@ class StandardPrismaticDHLink(AbstractPrismaticDHLink):
             Mechanical joint limits.
         """
         super().__init__(length, twist, angle, angle_unit, dynamics, q_lim)
-        self._rtb_link: PrismaticDH = PrismaticDH(
-            self._angle, self.length, self.twist, **self._rtb_q_lim_kwargs()
-        )  #type: ignore
-        self._apply_dynamics_to_rtb_link(self._rtb_link)
+        self._rbt_link: PrismaticDH = PrismaticDH(
+            theta=self._angle,  # type: ignore
+            a=self.length,
+            alpha=self.twist,
+            offset=zero_joint_offset,
+            **self._rbt_q_lim_kwargs()
+        )
+        self._apply_dynamics_to_rbt_link(self._rbt_link)
 
 
 class Standard:

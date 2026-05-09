@@ -119,10 +119,10 @@ class Frame:
 
     def to_pose_vector(self) -> NumpyArray:
         """
-        Returns a 6x1 vector representation of the frame [x, y, z, rx, ry, rz].
-        The first 3 elements are the position of the frame's origin. The last 3
-        elements are the Cartesian components of the angle-axis vector
-        describing the frame's orientation.
+        Returns the 6-element vector representation of the frame [x, y, z, rx,
+        ry, rz]. The first 3 elements (x, y, z) are the position of the frame's
+        origin. The last 3 elements (rx, ry, rz) are the Cartesian components of
+        the rotation or angle-axis vector describing the frame's orientation.
 
         Returns
         -------

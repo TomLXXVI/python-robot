@@ -4,6 +4,7 @@ import numpy as np
 from roboticstoolbox import ERobot
 
 from python_robot.base.types import NumpyArray
+from python_robot.base import Frame
 
 from .kinematic_chain import AbstractLink, KinematicChain
 from .visualisation import KinematicChainViewer
@@ -18,17 +19,19 @@ class SerialLinkManipulator(KinematicChain):
     def __init__(
         self,
         links: Sequence[AbstractLink],
-        joint_coords: Sequence[float] | None = None
+        joint_coords: Sequence[float] | None = None,
+        base_frame: Frame | None = None,
+        tool_frame: Frame | None = None,
     ) -> None:
-        super().__init__(links, joint_coords)
+        super().__init__(links, joint_coords, base_frame, tool_frame)
         self._erobot = self._create_erobot()
         self._viewer = KinematicChainViewer(self)
 
     def _create_erobot(self) -> ERobot:
-        links = [link.rtb_link.copy() for link in self]
+        links = [link.rbt_link.copy() for link in self]
         for j, link in enumerate(links):
             link.jindex = j
-        return ERobot(links)
+        return ERobot(links, base=self.base_frame.matrix, tool=self.tool_frame.matrix)
 
     @property
     def erobot(self) -> ERobot:

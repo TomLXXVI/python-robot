@@ -31,6 +31,8 @@ class Planar3R(SerialLinkManipulator):
         l2: float,
         point_masses: Sequence[float] | None = None,
         q_lim: Sequence[Sequence[float]] | None = None,
+        base_frame: Frame | None = None,
+        tool_frame: Frame | None = None,
     ) -> None:
         """
         Creates an instance of SP3RLinkManipulator.
@@ -58,7 +60,7 @@ class Planar3R(SerialLinkManipulator):
         self.q_lim = self._normalize_q_lim(q_lim)
         links = self._create_links()
 
-        super().__init__(links)
+        super().__init__(links, base_frame=base_frame, tool_frame=tool_frame)
 
     @staticmethod
     def _normalize_point_masses(point_masses: Sequence[float] | None) -> tuple[float, ...]:
@@ -155,8 +157,9 @@ class Planar3R(SerialLinkManipulator):
         configuration state, call method fwd_kin(...) with the returned joint
         angles.
         """
-        x, y = ee_frame.origin[0], ee_frame.origin[1]
-        phi = ee_frame.orient_angles[2]
+        link_frame = self._tcp_frame_to_link_frame(ee_frame)
+        x, y = link_frame.origin[0], link_frame.origin[1]
+        phi = link_frame.orient_angles[2]
 
         c2 = (x**2 + y**2 - self.l1**2 - self.l2**2) / (2 * self.l1 * self.l2)
         if c2 > 1 or c2 < -1:

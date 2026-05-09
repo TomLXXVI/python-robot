@@ -27,33 +27,32 @@ class AbstractDHLink(AbstractLink, ABC):
         q_lim: Sequence[float] | NumpyArray | None = None,
     ) -> None:
         super().__init__(angle_unit, dynamics, q_lim)
-
         self.length = length
         self.twist = self._set_twist(twist)
         self._offset = offset
         self._angle = angle
-        self._rtb_link: DHLink = None
+        self._rbt_link: DHLink = None
 
     @property
-    def rtb_link(self) -> RTBLink:
+    def rbt_link(self) -> RTBLink:
         """Returns the underlying Link object from Robotics Toolbox."""
-        if self._rtb_link is None:
-            raise ValueError("The underlying Robotics Toolbox link are not initialized.")
-        return self._rtb_link
+        if self._rbt_link is None:
+            raise ValueError("The underlying Robotics Toolbox link is not initialized.")
+        return self._rbt_link
 
     @property
     def ets(self) -> ETS:
         """Returns the underlying ETS object from Robotics Toolbox."""
-        if self._rtb_link is None:
-            raise ValueError("The underlying Robotics Toolbox link are not initialized.")
-        return self._rtb_link.ets
+        if self._rbt_link is None:
+            raise ValueError("The underlying Robotics Toolbox link is not initialized.")
+        return self._rbt_link.ets
 
     def _set_twist(self, twist: float) -> float:
         return twist if self.angle_unit == "rad" else float(np.deg2rad(twist))
 
     def _get_frame(self) -> Frame:
-        if self._rtb_link is not None and self._variable is not None:
-            SE3_mat = self._rtb_link.A(self._variable)
+        if self._rbt_link is not None and self._variable is not None:
+            SE3_mat = self._rbt_link.A(self._variable)
             return Frame.from_matrix(SE3_mat, angle_unit="rad")
         raise ValueError("Link is not configured.")
 

@@ -29,6 +29,8 @@ class XYZGantry(SerialLinkManipulator):
         q_lim: Sequence[Sequence[float]] | None = None,
         dynamics: Sequence[LinkDynamicParams | None] | None = None,
         joint_coords: Sequence[float] | None = None,
+        base_frame: Frame | None = None,
+        tool_frame: Frame | None = None,
     ) -> None:
         """
         Creates an XYZ gantry robot.
@@ -47,7 +49,12 @@ class XYZGantry(SerialLinkManipulator):
         self.q_lim = self._normalize_q_lim(q_lim)
         self.dynamics = self._normalize_dynamics(dynamics)
 
-        super().__init__(self._create_links(), joint_coords=joint_coords)
+        super().__init__(
+            self._create_links(),
+            joint_coords=joint_coords,
+            base_frame=base_frame,
+            tool_frame=tool_frame,
+        )
         self._viewer = KinematicChainViewer(self)
 
     @staticmethod
@@ -92,7 +99,8 @@ class XYZGantry(SerialLinkManipulator):
         """
         Returns the XYZ joint coordinates for a desired end-effector frame.
         """
-        q = np.asarray(ee_frame.origin, dtype=float)
+        link_frame = self._tcp_frame_to_link_frame(ee_frame)
+        q = np.asarray(link_frame.origin, dtype=float)
         self._check_joint_limits(q)
         return q
 

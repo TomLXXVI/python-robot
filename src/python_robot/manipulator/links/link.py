@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 from roboticstoolbox import ETS
-from roboticstoolbox import Link as RTBLink
+from roboticstoolbox import Link as RBTLink
 
 from python_robot.base.types import NumpyArray, AngleUnit
 from python_robot.base import Frame
@@ -90,16 +90,20 @@ class AbstractLink(ABC):
 
     @property
     def q_lim_internal(self) -> NumpyArray | None:
+        # same as q_lim but without angle conversion (radians always stay radians)
         if self._q_lim is None:
             return None
         return self._q_lim.copy()
 
-    def _rtb_q_lim_kwargs(self) -> dict[str, NumpyArray]:
+    def _rbt_q_lim_kwargs(self) -> dict[str, NumpyArray]:
+        # small trick to pass `q_lim` to the underlying RBT `Link` constructor
+        # only if it is not None
         return {} if self._q_lim is None else {"qlim": self._q_lim}
 
     @property
     @abstractmethod
     def variable(self) -> float | None:
+        """Returns the joint variable of the link"""
         return self._variable
 
     @variable.setter
@@ -167,15 +171,15 @@ class AbstractLink(ABC):
 
     @property
     @abstractmethod
-    def rtb_link(self) -> RTBLink:
+    def rbt_link(self) -> RBTLink:
         """
         Returns the underlying Robotics Toolbox links object.
         """
         ...
 
-    def _apply_dynamics_to_rtb_link(self, link: RTBLink) -> None:
+    def _apply_dynamics_to_rbt_link(self, link: RBTLink) -> None:
         """
-        Copies the stored dynamic parameters to a Robotics Toolbox Link object.
+        Copies the stored dynamic parameters to the RTB Link object.
         """
         if self.dynamics is None:
             return

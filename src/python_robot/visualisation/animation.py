@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Sequence, TYPE_CHECKING
+from typing import Literal, Sequence, TYPE_CHECKING
 
 from pathlib import Path
 import time
@@ -15,6 +15,10 @@ from .artists import FrameArtist, LinkArtist
 if TYPE_CHECKING:
     from ..base.frame import Frame
     from ..manipulator.kinematic_chain import KinematicChain
+
+ToolVisual = Literal["auto", "none", "point", "frame", "both"]
+ResolvedToolVisual = Literal["none", "point", "frame", "both"]
+_TOOL_VISUAL_OPTIONS = {"auto", "none", "point", "frame", "both"}
 
 
 class FrameAnimator:
@@ -98,7 +102,7 @@ class FrameAnimator:
         Parameters
         ----------
         frames : list[Frame]
-            Sequence of frame poses.
+            Sequence of frame poses, expressed in the scene/world frame.
         scale : float, default=1.0
             Length of the frame axes.
         line_width : float, default=3.0
@@ -182,7 +186,11 @@ class FrameAnimator:
         close_plotter: bool = False,
     ) -> None:
         """
-        Animate a sequence of SE3 matrices.
+        Animate a sequence of SE3 poses.
+
+        Parameters are the same as for `animate_frame_sequence()`, except that
+        the pose sequence is supplied as `spatialmath.SE3` matrices instead of
+        `Frame` objects.
         """
         frames = [Frame.from_matrix(matrix) for matrix in matrices]
 
@@ -221,6 +229,9 @@ class FrameAnimator:
     ) -> None:
         """
         Animate a sequence of SO3 orientations for a frame with fixed origin.
+
+        Parameters are the same as for `animate_frame_sequence()`, except that
+        only the orientation changes. The frame origin is set by `origin`.
         """
         origin_arr = np.asarray(origin, dtype=float).reshape(3)
         matrices = [SE3.Rt(R=R, t=origin_arr) for R in orientations]
@@ -245,6 +256,10 @@ class FrameAnimator:
 class KinematicChainAnimator(FrameAnimator):
     """
     Animate a kinematic chain in an existing world scene.
+
+    The animator updates link frames, link segments, and optionally the TCP/tool
+    visualization while preserving the original joint configuration of the
+    chain after the animation finishes.
     """
     @staticmethod
     def _get_link_frames(chain: KinematicChain) -> list[Frame]:
@@ -262,7 +277,8 @@ class KinematicChainAnimator(FrameAnimator):
         Return the line endpoints for all links in the chain.
         """
         frames = cls._get_link_frames(chain)
-        origins = [np.zeros(3)] + [np.asarray(frame.origin, dtype=float) for frame in frames]
+        base_origin = np.asarray(chain.base_frame.origin, dtype=float).reshape(3)
+        origins = [base_origin] + [np.asarray(frame.origin, dtype=float) for frame in frames]
         return list(zip(origins[:-1], origins[1:]))
 
     @classmethod
@@ -271,6 +287,32 @@ class KinematicChainAnimator(FrameAnimator):
         Return the current end-effector position of the chain.
         """
         return np.asarray(cls._get_link_frames(chain)[-1].origin, dtype=float).reshape(3)
+
+    @staticmethod
+    def _tool_frame_is_identity(chain: KinematicChain, atol: float = 1e-12) -> bool:
+        return np.allclose(chain.tool_frame.matrix.A, np.eye(4), atol=atol)
+
+    @classmethod
+    def _resolve_tool_visual(
+        cls,
+        chain: KinematicChain,
+        tool_visual: ToolVisual,
+    ) -> ResolvedToolVisual:
+        if tool_visual not in _TOOL_VISUAL_OPTIONS:
+            raise ValueError(
+                "tool_visual must be one of 'auto', 'none', 'point', 'frame', or 'both'."
+            )
+        if tool_visual == "auto":
+            return "none" if cls._tool_frame_is_identity(chain) else "frame"
+        return tool_visual  # type: ignore[return-value]
+
+    @staticmethod
+    def _get_tool_frame(chain: KinematicChain) -> Frame:
+        return chain.fwd_kin()
+
+    @staticmethod
+    def _get_last_link_origin(chain: KinematicChain) -> np.ndarray:
+        return np.asarray(chain.pose(-1).origin, dtype=float).reshape(3)
 
     @staticmethod
     def _make_path_mesh(points: list[np.ndarray]) -> pv.PolyData:
@@ -316,6 +358,14 @@ class KinematicChainAnimator(FrameAnimator):
         show_ee_path: bool = False,
         ee_path_color: str = "orange",
         ee_path_line_width: float = 3.0,
+        tool_visual: ToolVisual = "auto",
+        tool_frame_scale: float | None = None,
+        tool_frame_line_width: float = 2.0,
+        tool_point_color: str = "darkorange",
+        tool_point_size: float = 12.0,
+        tool_link_color: str = "darkorange",
+        tool_link_line_width: float = 3.0,
+        tool_name: str | None = "TCP",
     ) -> None:
         """
         Animate a sequence of joint configurations for a kinematic chain.
@@ -325,7 +375,9 @@ class KinematicChainAnimator(FrameAnimator):
         chain : KinematicChain
             The chain to animate. Its state will be restored afterward.
         joint_coord_sets : Sequence[Sequence[float]]
-            Sequence of joint coordinate vectors.
+            Sequence of joint-coordinate vectors. Each item is one full
+            configuration of the chain, with joints ordered from the base
+            toward the tool end.
         frame_scale : float, default=1.0
             Axis length of links frames.
         frame_line_width : float, default=2.0
@@ -351,11 +403,31 @@ class KinematicChainAnimator(FrameAnimator):
         close_plotter : bool, default=False
             Close plotter at end if no output file is written.
         show_ee_path : bool, default=False
-            If True, draw the path traced by the end-effector.
+            If True, draw the path traced by the last link frame.
         ee_path_color : str, default="orange"
             Color of the end-effector path.
         ee_path_line_width : float, default=3.0
             Line width of the end-effector path.
+        tool_visual : {'auto', 'none', 'point', 'frame', 'both'}, default='auto'
+            How to visualize the tool/TCP frame. With 'auto', no tool is drawn
+            when the tool frame is the identity transform; otherwise a smaller
+            TCP frame is drawn.
+        tool_frame_scale : float | None, optional
+            Axis length for the TCP frame. If None, a scale relative to
+            `frame_scale` is used.
+        tool_frame_line_width : float, default=2.0
+            Line width of the TCP frame axes.
+        tool_point_color : str, default='darkorange'
+            Color used for the TCP point when `tool_visual` is 'point' or
+            'both'.
+        tool_point_size : float, default=12.0
+            Marker size of the TCP point.
+        tool_link_color : str, default='darkorange'
+            Color of the segment from the last link frame to the TCP.
+        tool_link_line_width : float, default=3.0
+            Line width of the segment from the last link frame to the TCP.
+        tool_name : str | None, default='TCP'
+            Optional label for the TCP point or frame.
         """
         sampled_joint_sets = list(joint_coord_sets[::step])
         if not sampled_joint_sets:
@@ -403,6 +475,45 @@ class KinematicChainAnimator(FrameAnimator):
                 )
                 link_artists.append(artist)
 
+            resolved_tool_visual = self._resolve_tool_visual(chain, tool_visual)  # type: ignore
+            tool_frame_artist: FrameArtist | None = None
+            tool_point_artist = None
+            tool_link_artist: LinkArtist | None = None
+            tool_scale = tool_frame_scale if tool_frame_scale is not None else 0.7 * frame_scale
+
+            if resolved_tool_visual != "none":
+                tool_frame = self._get_tool_frame(chain)
+                tcp_origin = np.asarray(tool_frame.origin, dtype=float).reshape(3)
+                link_origin = self._get_last_link_origin(chain)
+
+                if (
+                    resolved_tool_visual in ("frame", "both")
+                    and not np.allclose(link_origin, tcp_origin)
+                ):
+                    tool_link_artist = self.scene.create_link_artist(
+                        p1=link_origin,
+                        p2=tcp_origin,
+                        color=tool_link_color,
+                        line_width=tool_link_line_width,
+                    )
+
+                if resolved_tool_visual in ("point", "both"):
+                    tool_point_artist = self.scene.create_point_artist(
+                        point=tcp_origin,
+                        color=tool_point_color,
+                        size=tool_point_size,
+                        name=tool_name,
+                    )
+
+                if resolved_tool_visual in ("frame", "both"):
+                    tool_frame_artist = self.scene.create_frame_artist(
+                        frame=tool_frame,
+                        scale=tool_scale,
+                        line_width=tool_frame_line_width,
+                        name=tool_name,
+                        show_label=tool_name is not None,
+                    )
+
             ee_path_points: list[np.ndarray] = []
             ee_path_mesh: pv.PolyData | None = None
             if show_ee_path:
@@ -447,6 +558,33 @@ class KinematicChainAnimator(FrameAnimator):
                         p2=p2,
                         render=False,
                     )
+
+                if resolved_tool_visual != "none":
+                    tool_frame = self._get_tool_frame(chain)
+                    tcp_origin = np.asarray(tool_frame.origin, dtype=float).reshape(3)
+
+                    if tool_link_artist is not None:
+                        self.scene.update_link_artist(
+                            tool_link_artist,
+                            p1=self._get_last_link_origin(chain),
+                            p2=tcp_origin,
+                            render=False,
+                        )
+
+                    if tool_point_artist is not None:
+                        self.scene.update_point_artist(
+                            tool_point_artist,
+                            point=tcp_origin,
+                            render=False,
+                        )
+
+                    if tool_frame_artist is not None:
+                        self.scene.update_frame_artist(
+                            tool_frame_artist,
+                            frame=tool_frame,
+                            scale=tool_scale,
+                            render=False,
+                        )
 
                 if ee_path_mesh is not None:
                     ee_path_points.append(self._get_end_effector_position(chain))
