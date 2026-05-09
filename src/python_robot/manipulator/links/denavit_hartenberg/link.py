@@ -1,164 +1,80 @@
+from typing import Type
+
 from abc import ABC
-from typing import Sequence
 
-import numpy as np
-from roboticstoolbox import RevoluteDH, PrismaticDH, RevoluteMDH, PrismaticMDH, ETS
-from roboticstoolbox import Link as RTBLink
+from roboticstoolbox import (
+    RevoluteDH, RevoluteMDH,
+    PrismaticDH, PrismaticMDH
+)
 
-from python_robot.base.types import AngleUnit, NumpyArray
-from python_robot.base import Frame
-
-from ..link import AbstractLink, LinkDynamicParams
-
-
-DHLink = RevoluteDH | PrismaticDH | RevoluteMDH | PrismaticMDH | None
+from ..link import (
+    AbstractLink, LinkDynamicParams,
+    AbstractRevoluteLink, AbstractPrismaticLink
+)
 
 
 class AbstractDHLink(AbstractLink, ABC):
 
     def __init__(
         self,
-        length: float,
-        twist: float,
-        offset: float | None,
-        angle: float | None,
-        angle_unit: AngleUnit | None = None,
-        dynamics: LinkDynamicParams | None = None,
-        q_lim: Sequence[float] | NumpyArray | None = None,
+        link_length: float,
+        twist_angle: float,
+        rtb_link: RevoluteDH | RevoluteMDH | PrismaticDH | PrismaticMDH,
+        dynamics: LinkDynamicParams = None,
     ) -> None:
-        super().__init__(angle_unit, dynamics, q_lim)
-        self.length = length
-        self.twist = self._set_twist(twist)
-        self._offset = offset
-        self._angle = angle
-        self._rbt_link: DHLink = None
-
-    @property
-    def rbt_link(self) -> RTBLink:
-        """Returns the underlying Link object from Robotics Toolbox."""
-        if self._rbt_link is None:
-            raise ValueError("The underlying Robotics Toolbox link is not initialized.")
-        return self._rbt_link
-
-    @property
-    def ets(self) -> ETS:
-        """Returns the underlying ETS object from Robotics Toolbox."""
-        if self._rbt_link is None:
-            raise ValueError("The underlying Robotics Toolbox link is not initialized.")
-        return self._rbt_link.ets
-
-    def _set_twist(self, twist: float) -> float:
-        return twist if self.angle_unit == "rad" else float(np.deg2rad(twist))
-
-    def _get_frame(self) -> Frame:
-        if self._rbt_link is not None and self._variable is not None:
-            SE3_mat = self._rbt_link.A(self._variable)
-            return Frame.from_matrix(SE3_mat, angle_unit="rad")
-        raise ValueError("Link is not configured.")
-
-    @property
-    def link_length(self) -> float:
-        return self.length
+        self._twist_angle = twist_angle
+        super().__init__(link_length, rtb_link, dynamics)
 
 
-class AbstractRevoluteDHLink(AbstractDHLink, ABC):
+class AbstractRevoluteDHLink(AbstractDHLink, AbstractRevoluteLink):
+    _rtb_constructor: Type[RevoluteDH | RevoluteMDH]
 
     def __init__(
         self,
-        length: float,
-        twist: float,
-        offset: float,
-        angle_unit: AngleUnit | None = None,
-        dynamics: LinkDynamicParams | None = None,
-        q_lim: Sequence[float] | NumpyArray | None = None,
+        link_length: float,
+        twist_angle: float,
+        link_offset: float,
+        zero_joint_angle: float = 0.0,
+        limits_joint_angle: tuple[float, float] | None = None,
+        dynamics: LinkDynamicParams = None,
     ) -> None:
-        super().__init__(length, twist, offset, None, angle_unit, dynamics, q_lim)
+        self._link_offset = link_offset
+        self._zero_joint_angle = zero_joint_angle
+        self._limits_joint_angle = limits_joint_angle
 
-    @property
-    def angle(self) -> float | None:
-        """
-        Returns the rotation angle of the link.
-        If self.angle_unit == "deg", the angle is returned in degrees.
-        """
-        if self._angle is not None:
-            if self.angle_unit == "rad":
-                return self._angle
-            else:
-                return float(np.rad2deg(self._angle))
-        return None
+        rtb_link: RevoluteDH | RevoluteMDH = self._rtb_constructor(
+            d=self._link_offset,
+            a=link_length,
+            alpha=twist_angle,
+            offset=self._zero_joint_angle,
+            qlim=self._limits_joint_angle
+        )
 
-    @angle.setter
-    def angle(self, v: float) -> None:
-        """
-        Sets the rotation angle of the link.
-        If self.angle_unit == "deg", the angle must be set in degrees.
-        """
-        self._angle = v if self.angle_unit == "rad" else float(np.deg2rad(v))
-        self._variable = self._angle
-
-    @property
-    def variable(self) -> float | None:
-        return super().variable
-
-    @variable.setter
-    def variable(self, v: float) -> None:
-        self.angle = v
-
-    @property
-    def is_revolute(self) -> bool:
-        return True
-
-    @property
-    def is_prismatic(self) -> bool:
-        return False
+        super().__init__(link_length, twist_angle, rtb_link, dynamics)
 
 
-class AbstractPrismaticDHLink(AbstractDHLink, ABC):
+class AbstractPrismaticDHLink(AbstractDHLink, AbstractPrismaticLink):
+    _rtb_constructor: Type[PrismaticDH | PrismaticMDH]
 
     def __init__(
         self,
-        length: float,
-        twist: float,
-        angle: float,
-        angle_unit: AngleUnit | None = None,
-        dynamics: LinkDynamicParams | None = None,
-        q_lim: Sequence[float] | NumpyArray | None = None,
+        link_length: float,
+        twist_angle: float,
+        joint_angle: float,
+        zero_link_offset: float = 0.0,
+        limits_link_offset: tuple[float, float] | None = None,
+        dynamics: LinkDynamicParams = None,
     ) -> None:
-        resolved_angle_unit = self.defaults.angle_unit if angle_unit is None else angle_unit
-        angle = np.deg2rad(angle) if resolved_angle_unit == "deg" else angle
-        super().__init__(length, twist, None, angle, angle_unit, dynamics, q_lim)
+        self._joint_angle = joint_angle
+        self._zero_link_offset = zero_link_offset
+        self._limits_link_offset = limits_link_offset
 
-    @property
-    def offset(self) -> float:
-        """Returns the linear offset of the link."""
-        return self._offset
+        rtb_link: PrismaticDH | PrismaticMDH = self._rtb_constructor(
+            theta=self._joint_angle,
+            a=link_length,
+            alpha=twist_angle,
+            offset=self._zero_link_offset,
+            qlim=self._limits_link_offset
+        )
 
-    @offset.setter
-    def offset(self, v: float) -> None:
-        """Sets the linear offset of the link."""
-        self._offset = v
-        self._variable = self._offset
-
-    @property
-    def variable(self) -> float | None:
-        return super().variable
-
-    @variable.setter
-    def variable(self, v: float) -> None:
-        self.offset = v
-
-    @property
-    def angle(self) -> float:
-        """
-        Returns the fixed joint angle of the prismatic link.
-        If self.angle_unit == "deg", the angle is returned in degrees.
-        """
-        return self._angle if self.angle_unit == "rad" else float(np.rad2deg(self._angle))  #type: ignore
-
-    @property
-    def is_revolute(self) -> bool:
-        return False
-
-    @property
-    def is_prismatic(self) -> bool:
-        return True
+        super().__init__(link_length, twist_angle, rtb_link, dynamics)

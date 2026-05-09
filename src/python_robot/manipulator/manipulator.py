@@ -24,14 +24,7 @@ class SerialLinkManipulator(KinematicChain):
         tool_frame: Frame | None = None,
     ) -> None:
         super().__init__(links, joint_coords, base_frame, tool_frame)
-        self._erobot = self._create_erobot()
         self._viewer = KinematicChainViewer(self)
-
-    def _create_erobot(self) -> ERobot:
-        links = [link.rbt_link.copy() for link in self]
-        for j, link in enumerate(links):
-            link.jindex = j
-        return ERobot(links, base=self.base_frame.matrix, tool=self.tool_frame.matrix)
 
     @property
     def erobot(self) -> ERobot:
@@ -84,7 +77,7 @@ class SerialLinkManipulator(KinematicChain):
         qd = self._check_number_of_joint_coords(joint_velocities)
         qdd = self._check_number_of_joint_coords(joint_accelerations)
 
-        q = np.asarray(self._convert_to_rad(q), dtype=float)
+        q = np.asarray(q, dtype=float)
         qd = np.asarray(qd, dtype=float)
         qdd = np.asarray(qdd, dtype=float)
 

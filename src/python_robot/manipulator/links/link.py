@@ -1,15 +1,14 @@
 from typing import Sequence
 
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 import numpy as np
+from roboticstoolbox import Link as RTBLink
 from roboticstoolbox import ETS
-from roboticstoolbox import Link as RBTLink
 
-from python_robot.base.types import NumpyArray, AngleUnit
-from python_robot.base import Frame
-
+from ...base.types import NumpyArray
+from ...base import Frame
 
 __all__ = ["LinkDynamicParams", "AbstractLink"]
 
@@ -18,8 +17,6 @@ __all__ = ["LinkDynamicParams", "AbstractLink"]
 class LinkDynamicParams:
     """
     Dynamic parameters of a robot link.
-
-    Parameters follow the conventions of Robotics Toolbox for Python.
     """
     mass: float = 0.0
     center_of_mass: Sequence[float] = (0.0, 0.0, 0.0)
@@ -37,158 +34,113 @@ class LinkDynamicParams:
 
 
 class AbstractLink(ABC):
-    """
-    Abstract base class for a robot link.
-
-    Attributes
-    ----------
-    name : str
-        Name to identify the link in the kinematic chain.
-    angle_unit : AngleUnit
-        Angle unit used for the angles used in configuring the link.
-    dynamics : LinkDynamicParams
-        Dynamic parameters of the link.
-    """
-    @dataclass(frozen=True)
-    class defaults:
-        angle_unit: AngleUnit = "rad"  # same unit for all angles present in the links
 
     def __init__(
         self,
-        angle_unit: AngleUnit | None = None,
-        dynamics: LinkDynamicParams | None = None,
-        q_lim: Sequence[float] | NumpyArray | None = None,
+        link_length: float,
+        rtb_link: RTBLink,
+        dynamics: LinkDynamicParams | None = None
     ) -> None:
-        """
-        Base initializer for classes derived from AbstractLink.
-        """
-        self.angle_unit: AngleUnit = self.defaults.angle_unit if angle_unit is None else angle_unit  #type: ignore
-        self._variable: float | None = None
-        self._q_lim = self._set_q_lim(q_lim)
-        self.name: str = ""
-        self.dynamics = dynamics
+        self._link_length = link_length
+        self._rtb_link = rtb_link
+        self._dynamics = dynamics
 
-    def _set_q_lim(self, q_lim: Sequence[float] | NumpyArray | None) -> NumpyArray | None:
-        if q_lim is None:
-            return None
+        self._variable: float = 0.0
 
-        limits = np.asarray(q_lim, dtype=float)
-        if limits.shape != (2,):
-            raise ValueError("q_lim must contain exactly two values: lower and upper joint limit.")
+        self._add_dynamics_to_rtb_link(self._dynamics)
 
-        if self.is_revolute and self.angle_unit == "deg":
-            return np.deg2rad(limits)
-        return limits
+    def _add_dynamics_to_rtb_link(
+        self,
+        dynamics: LinkDynamicParams | None
+    ) -> None:
+        if dynamics is None:
+            return
 
-    @property
-    def q_lim(self) -> NumpyArray | None:
-        if self._q_lim is None:
-            return None
-        if self.is_revolute and self.angle_unit == "deg":
-            return np.rad2deg(self._q_lim)
-        return self._q_lim.copy()
+        self._rtb_link.m = dynamics.mass
+        self._rtb_link.r = np.asarray(dynamics.center_of_mass, dtype=float)
+        self._rtb_link.I = dynamics.inertia_matrix()
+        self._rtb_link.Jm = dynamics.motor_inertia
+        self._rtb_link.B = dynamics.viscous_friction
+        self._rtb_link.Tc = dynamics.coulomb_friction
+        self._rtb_link.G = dynamics.gear_ratio
 
     @property
-    def q_lim_internal(self) -> NumpyArray | None:
-        # same as q_lim but without angle conversion (radians always stay radians)
-        if self._q_lim is None:
-            return None
-        return self._q_lim.copy()
-
-    def _rbt_q_lim_kwargs(self) -> dict[str, NumpyArray]:
-        # small trick to pass `q_lim` to the underlying RBT `Link` constructor
-        # only if it is not None
-        return {} if self._q_lim is None else {"qlim": self._q_lim}
+    def rtb_link(self) -> RTBLink:
+        return self._rtb_link
 
     @property
-    @abstractmethod
-    def variable(self) -> float | None:
-        """Returns the joint variable of the link"""
+    def variable(self) -> float:
         return self._variable
 
     @variable.setter
-    @abstractmethod
     def variable(self, v: float) -> None:
-        ...
-
-    def is_configured(self) -> bool:
-        """
-        Returns True if the links is fully configured (i.e., the joint variable
-        of the links is set), False otherwise.
-        """
-        return bool(self._variable is not None)
-
-    @abstractmethod
-    def _get_frame(self) -> Frame:
-        ...
+        self._variable = v
 
     @property
     def frame(self) -> Frame:
-        """
-        Returns the links frame, if the joint variable is set. If the joint
-        variable is not set (None), a ValueError is raised that the links has
-        not been configured yet.
-
-        Returns
-        -------
-        Frame
-        """
-        if self.is_configured():
-            return self._get_frame()
-        raise ValueError("links is not configured.")
+        SE3_mat = self._rtb_link.A(self._variable)
+        return Frame.from_matrix(SE3_mat)
 
     @property
-    @abstractmethod
     def ets(self) -> ETS:
-        """
-        Returns the underlying Robotics Toolbox ETS object.
-        """
-        ...
+        return self._rtb_link.ets
+
+    @property
+    def link_length(self) -> float:
+        return self._link_length
+
+    @property
+    def dynamics(self) -> LinkDynamicParams | None:
+        return self._dynamics
+
+    @property
+    def q_lim(self) -> NumpyArray | None:
+        return self._rtb_link.qlim
 
     @property
     @abstractmethod
     def is_revolute(self) -> bool:
-        """
-        Returns True if the links has a revolute joint.
-        """
         ...
 
     @property
     @abstractmethod
     def is_prismatic(self) -> bool:
-        """
-        Returns True if the links has a prismatic joint.
-        """
         ...
+
+
+class AbstractRevoluteLink(AbstractLink, ABC):
 
     @property
-    @abstractmethod
-    def link_length(self) -> float:
-        """
-        Returns the length of the links.
-        """
-        ...
+    def joint_angle(self) -> float:
+        return self._variable
+
+    @joint_angle.setter
+    def joint_angle(self, v: float) -> None:
+        self._variable = v
 
     @property
-    @abstractmethod
-    def rbt_link(self) -> RBTLink:
-        """
-        Returns the underlying Robotics Toolbox links object.
-        """
-        ...
+    def is_revolute(self) -> bool:
+        return True
 
-    def _apply_dynamics_to_rbt_link(self, link: RBTLink) -> None:
-        """
-        Copies the stored dynamic parameters to the RTB Link object.
-        """
-        if self.dynamics is None:
-            return
+    @property
+    def is_prismatic(self) -> bool:
+        return False
 
-        dyn = self.dynamics
-        link.m = dyn.mass
-        link.r = np.asarray(dyn.center_of_mass, dtype=float)
-        link.I = dyn.inertia_matrix()
-        link.Jm = dyn.motor_inertia
-        link.B = dyn.viscous_friction
-        link.Tc = dyn.coulomb_friction
-        link.G = dyn.gear_ratio
+
+class AbstractPrismaticLink(AbstractLink, ABC):
+
+    @property
+    def link_offset(self) -> float:
+        return self._variable
+
+    @link_offset.setter
+    def link_offset(self, v: float) -> None:
+        self._variable = v
+
+    @property
+    def is_prismatic(self) -> bool:
+        return True
+
+    @property
+    def is_revolute(self) -> bool:
+        return False

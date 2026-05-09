@@ -458,7 +458,7 @@ class KinematicChainAnimator(FrameAnimator):
                     else:
                         frame, name = item, None
                     artist = self.scene.create_frame_artist(
-                        frame=frame,  #type: ignore
+                        frame=frame,  # type: ignore
                         scale=frame_scale,
                         line_width=frame_line_width,
                         name=name,

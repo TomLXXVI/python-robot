@@ -9,7 +9,7 @@ from ..base import Frame
 from ..base.types import NumpyArray
 from ..manipulator import KinematicChainViewer, SerialLinkManipulator
 from ..manipulator.links import LinkDynamicParams
-from ..manipulator.links.ets import PrismaticETSLink
+from ..manipulator.links.ets import PrismaticETSLink, LinkETParams
 
 
 __all__ = ["XYZGantry"]
@@ -88,9 +88,10 @@ class XYZGantry(SerialLinkManipulator):
         axes = ("x", "y", "z")
         return [
             PrismaticETSLink(
-                axis,  # type: ignore
+                translation_axis=axis,  # type: ignore
+                ET_params=LinkETParams(),
+                limits_link_offset=None if self.q_lim is None else self.q_lim[i],
                 dynamics=self.dynamics[i],
-                q_lim=None if self.q_lim is None else self.q_lim[i],
             )
             for i, axis in enumerate(axes)
         ]

@@ -1,6 +1,2 @@
-"""
-Denavit-Hartenberg.
-"""
-from .link import *
-from .standard import *
 from .modified import *
+from .standard import *

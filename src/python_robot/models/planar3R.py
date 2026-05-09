@@ -7,10 +7,9 @@ import numpy as np
 
 from ..base.types import NumpyArray
 from ..base import Frame
-from ..manipulator.links.denavit_hartenberg import ModifiedLinkRevolute
+from ..manipulator.links.denavit_hartenberg import RevoluteMDHLink
 from ..manipulator.links import LinkDynamicParams
 from ..manipulator import SerialLinkManipulator, RefFrame, IKSolverSpec
-from ..manipulator import KinematicChainViewer
 
 
 __all__ = ["Planar3R"]
@@ -94,8 +93,7 @@ class Planar3R(SerialLinkManipulator):
             )
         return limits  # type: ignore[return-value]
 
-    def _create_links(self) -> list[ModifiedLinkRevolute]:
-        # All links have angles in radians.
+    def _create_links(self) -> list[RevoluteMDHLink]:
 
         def _create_point_mass_dynamics(self_) -> list[LinkDynamicParams]:
             link_lengths = (0.0, self_.l1, self_.l2)
@@ -110,22 +108,27 @@ class Planar3R(SerialLinkManipulator):
 
         dynamics = _create_point_mass_dynamics(self)
 
-        link1 = ModifiedLinkRevolute(
-            length=0.0, twist=0.0, offset=0.0,  # length between J0 (fixed base) and J1
+        link1 = RevoluteMDHLink(
+            link_length=0.0,  # length between J0 (fixed base) and J1
+            twist_angle=0.0,
+            link_offset=0.0,
             dynamics=dynamics[0],
-            q_lim=None if self.q_lim is None else self.q_lim[0],
+            limits_joint_angle=None if self.q_lim is None else self.q_lim[0],
         )
-        link2 = ModifiedLinkRevolute(
-            length=self.l1, twist=0.0, offset=0.0,  # length between J1 and J2
+        link2 = RevoluteMDHLink(
+            link_length=self.l1,  # length between J1 and J2
+            twist_angle=0.0,
+            link_offset=0.0,
             dynamics=dynamics[1],
-            q_lim=None if self.q_lim is None else self.q_lim[1],
+            limits_joint_angle=None if self.q_lim is None else self.q_lim[1],
         )
-        link3 = ModifiedLinkRevolute(
-            length=self.l2, twist=0.0, offset=0.0,  # length between J2 and J3
+        link3 = RevoluteMDHLink(
+            link_length=self.l2,  # length between J2 and J3
+            twist_angle=0.0,
+            link_offset=0.0,
             dynamics=dynamics[2],
-            q_lim=None if self.q_lim is None else self.q_lim[2],
+            limits_joint_angle=None if self.q_lim is None else self.q_lim[2],
         )
-
         return [link1, link2, link3]
 
     def inv_kin_analytic(
