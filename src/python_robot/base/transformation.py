@@ -15,6 +15,9 @@ __all__ = ["Transformation", "Translation", "Rotation", "Screw"]
 
 class Transformation(ABC):
 
+    def __init__(self) -> None:
+        self._matrix: SE3 = SE3()
+
     @property
     @abstractmethod
     def matrix(self) -> SE3:
@@ -27,6 +30,21 @@ class Transformation(ABC):
         SE3
         """
         pass
+
+    @classmethod
+    @abstractmethod
+    def from_matrix(cls, matrix: SE3) -> Transformation:
+        """
+        Creates a Transformation object from a 4x4 homogeneous matrix.
+        """
+        pass
+
+    def inv(self) -> Transformation:
+        """
+        Returns the inverse of the transformation.
+        """
+        inv_matrix = self._matrix.inv()
+        return self.from_matrix(inv_matrix)
 
 
 class Translation(Transformation):
@@ -47,6 +65,7 @@ class Translation(Transformation):
         vector: Vector
             Cartesian translation vector.
         """
+        super().__init__()
         self.vector = vector
         # noinspection PyArgumentList
         self._matrix = SE3.Trans(np.asarray(vector, dtype=float))
@@ -57,6 +76,10 @@ class Translation(Transformation):
         Creates a Translation object defined by an Axis object and a distance.
         """
         return cls(Vector(distance * axis))
+
+    @classmethod
+    def from_matrix(cls, matrix: SE3) -> Translation:
+        return cls(Vector(matrix.t))
 
     @property
     def matrix(self) -> SE3:
@@ -69,6 +92,10 @@ class Translation(Transformation):
         SE3
         """
         return self._matrix
+
+    @property
+    def distance(self) -> float:
+        return float(np.sqrt(np.square(self.vector).sum()))
 
 
 class Rotation(Transformation):
@@ -113,6 +140,7 @@ class Rotation(Transformation):
             the rotation axis is taken through the origin of the reference
             frame.
         """
+        super().__init__()
         self.vector = vector
         self.angle = vector.magnitude
         self.axis = vector.axis
@@ -154,7 +182,14 @@ class Rotation(Transformation):
             Units of the rotation angle.
         """
         return cls(Vector(angle * axis), pole, angle_unit)
-    
+
+    @classmethod
+    def from_matrix(cls, matrix: SE3, angle_unit: AngleUnit = "rad") -> Rotation:
+        theta, axis = matrix.angvec(angle_unit)
+        vector = Vector.from_axis(Axis(axis), theta)
+        pole = Vector(matrix.t)
+        return cls(vector, pole, angle_unit=angle_unit)
+
     @property
     def matrix(self) -> SE3:
         """
@@ -200,7 +235,7 @@ class Screw(Transformation):
         axis: Axis,
         pole: Vector | None,
         magnitude: float,
-        pitch: float,
+        pitch: float | None = None,
         angle_unit: AngleUnit = "rad"
     ) -> None:
         """
@@ -219,12 +254,14 @@ class Screw(Transformation):
             along the screw axis in case the screw motion is purely
             translational.
         pitch : float, optional
-            The pitch of the screw axis. This has no meaning (can be None) in
-            case the screw motion is purely rotational or purely translational.
+            The pitch of the screw axis, i.e., the translation distance per
+            angle unit. The pitch has no meaning (and can be None) in case the
+            screw motion is purely rotational or purely translational.
         angle_unit : AngleUnits, optional, default = "deg"
             Units of the rotation angle. This has no meaning (can be None) in
             case the screw motion is purely translational.
         """
+        super().__init__()
         self.axis = axis
         self.pole = pole
         self.magnitude = magnitude
@@ -288,7 +325,7 @@ class Screw(Transformation):
         -------
         NumpyArray
         """
-        return self.magnitude * self._unit_twist.velocity
+        return self.magnitude * self._unit_twist.v
 
     @property
     def omega(self) -> NumpyArray:

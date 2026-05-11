@@ -18,13 +18,15 @@ __all__ = ["RevoluteETSLink", "PrismaticETSLink"]
 
 
 class AbstractETSLink(AbstractLink, ABC):
-
+    """
+    Defines a link using Elementary Transform Sequence (ETS).
+    """
     def __init__(
         self, 
         axis: Literal["x", "y", "z"],
         ET_params: LinkETParams,
         joint_limits: tuple[float, float] | None = None,
-        dynamics: LinkDynamicParams = None,
+        dynamics: LinkDynamicParams | None = None,
     ) -> None:
         self._axis = axis
         self._ET_params = ET_params
@@ -72,9 +74,26 @@ class RevoluteETSLink(AbstractETSLink, AbstractRevoluteLink):
         rotation_axis: Literal["x", "y", "z"],
         ET_params: LinkETParams,
         limits_joint_angle: tuple[float, float] | None = None,
-        dynamics: LinkDynamicParams = None,
+        dynamics: LinkDynamicParams | None = None,
     ) -> None:
-        super().__init__(rotation_axis, ET_params, limits_joint_angle, dynamics)
+        """
+        Creates a revolute link using Elementary Transform Sequence (ETS).
+
+        Parameters
+        ----------
+        rotation_axis: Literal["x", "y", "z"]
+            Indicates the rotation axis of the revolute joint w.r.t. previous
+            link frame.
+        ET_params: LinkETParams
+            Data-object holding the parameters that define the link's
+            Elementary Transforms (ETs) that specify the pose of this link frame
+            w.r.t. to the previous link frame in the chain.
+        limits_joint_angle: tuple[float, float], optional
+            Lower and upper mechanical limit of the revolute joint.
+        dynamics: LinkDynamicParams, optional
+            Data-object holding the dynamical parameters of the link.
+        """
+        super().__init__(rotation_axis, ET_params, limits_joint_angle, dynamics)  # type: ignore
 
     @staticmethod    
     def _ET_variable(
@@ -128,9 +147,26 @@ class PrismaticETSLink(AbstractETSLink, AbstractPrismaticLink):
         translation_axis: Literal["x", "y", "z"],
         ET_params: LinkETParams,
         limits_link_offset: tuple[float, float] | None = None,
-        dynamics: LinkDynamicParams = None,
+        dynamics: LinkDynamicParams | None = None,
     ) -> None:
-        super().__init__(translation_axis, ET_params, limits_link_offset, dynamics)
+        """
+        Creates a prismatic link using Elementary Transform Sequence (ETS).
+
+        Parameters
+        ----------
+        translation_axis: Literal["x", "y", "z"]
+            Designates the translation axis of the prismatic joint w.r.t. the
+            previous link frame of the manipulator.
+        ET_params: LinkETParams
+            Data-object holding the parameters that define the link's
+            Elementary Transforms (ETs) that specify the pose of this link frame
+            w.r.t. to the previous link frame in the chain.
+        limits_link_offset: tuple[float, float], optional
+            Lower and upper mechanical limit of the prismatic joint.
+        dynamics: LinkDynamicParams, optional
+            Data-object holding the dynamical parameters of the link.
+        """
+        super().__init__(translation_axis, ET_params, limits_link_offset, dynamics)  # type: ignore
     
     @staticmethod
     def _ET_variable(

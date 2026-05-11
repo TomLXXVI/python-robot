@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Literal
 
 import numpy as np
 import pyvista as pv
@@ -345,7 +346,6 @@ class WorldScene:
             frame=WREF_FRAME,
             scale=scale,
             line_width=line_width,
-            name="W",
             show_label=label,
             label_offset=label_offset,
         )
@@ -355,7 +355,6 @@ class WorldScene:
         frame: Frame,
         scale: float = 1.0,
         line_width: float = 2.0,
-        name: str | None = None,
         show_label: bool = True,
         label_offset: float = 0.1,
         label_font_size: int = 14,
@@ -369,12 +368,12 @@ class WorldScene:
         self.plotter.add_mesh(pv.Line(origin, py), color="green", line_width=line_width)
         self.plotter.add_mesh(pv.Line(origin, pz), color="blue", line_width=line_width)
 
-        if show_label and name is not None:
+        if show_label and frame.name is not None:
             label_point = pz.copy()
             label_point[2] += label_offset
             self._make_label_actor(
                 point=label_point,
-                text=name,
+                text=frame.name,
                 font_size=label_font_size,
                 shape_opacity=0.25,
                 always_visible=True,
@@ -629,12 +628,20 @@ class WorldScene:
         """
         self.plotter.show(**kwargs)
 
-    async def show_async(self, **kwargs) -> None:
+    async def show_async(
+        self,
+        jupyter_backend: Literal["client", "server", "trame"] | None = None,
+        **kwargs
+    ) -> None:
         """
         Render the scene asynchronously.
 
         This is mainly useful when using a PyVista backend that relies on a
         Trame/Jupyter server.
         """
-        self.plotter.show(jupyter_backend="server", **kwargs)
-        await pv.trame.jupyter.launch_server(wslink_backend="jupyter").ready
+        backend = jupyter_backend if jupyter_backend is not None else pv.global_theme.jupyter_backend
+
+        if backend is not None and backend.lower() in {"server", "client", "trame"}:
+            await pv.trame.jupyter.launch_server().ready
+
+        self.plotter.show(jupyter_backend=jupyter_backend, **kwargs)  # type: ignore

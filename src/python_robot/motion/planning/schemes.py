@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Sequence
+from typing import Sequence, Literal
 
 import numpy as np
 
@@ -1229,11 +1229,11 @@ class _CartesianTrajectoryPlotter:
         # Original target frames
         if show_target_frames:
             for i, frame in enumerate(self._cms._target_frames):
+                frame.name = f"T{i}"
                 scene.add_frame(
                     frame=frame,
                     scale=target_frame_scale,
                     line_width=2.0,
-                    name=f"T{i}",
                     show_label=True,
                 )
 
@@ -1335,6 +1335,7 @@ class _CartesianTrajectoryPlotter:
         target_path_width: float = 2.0,
         frame_scale: float = 0.2,
         target_frame_scale: float = 0.25,
+        jupyter_backend: Literal["server", "client", "trame"] = "client",
         **kwargs
     ) -> None:
         """
@@ -1363,7 +1364,7 @@ class _CartesianTrajectoryPlotter:
             target_frame_scale=target_frame_scale,
             **kwargs,
         )
-        await scene.show_async()
+        await scene.show_async(jupyter_backend)
 
 
 class _JointMotionTables:

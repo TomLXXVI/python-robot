@@ -28,7 +28,7 @@ class KinematicChainViewer:
 
     def __init__(self, kinematic_chain: KinematicChain) -> None:
         self.kinematic_chain = kinematic_chain
-        self.min_link_length = min([l.link_length for l in kinematic_chain if l.link_length])
+        # self.min_link_length = min([link.link_length for link in kinematic_chain if link.link_length])
 
     def _get_link_frames(self) -> list[Frame]:
         return [
@@ -75,6 +75,7 @@ class KinematicChainViewer:
             return
 
         tool_frame = self.kinematic_chain.fwd_kin()
+        tool_frame.name = tool_name if tool_name is not None else ""
         last_link_frame = self.kinematic_chain.pose(-1)
         tcp_origin = np.asarray(tool_frame.origin, dtype=float)
         link_origin = np.asarray(last_link_frame.origin, dtype=float)
@@ -92,7 +93,7 @@ class KinematicChainViewer:
                 point=tcp_origin,
                 color=tool_point_color,
                 size=tool_point_size,
-                name=tool_name,
+                name=tool_frame.name,
             )
 
         if resolved in ("frame", "both"):
@@ -100,7 +101,6 @@ class KinematicChainViewer:
                 tool_frame,
                 scale=tool_frame_scale if tool_frame_scale is not None else 0.7 * frame_scale,
                 line_width=tool_frame_line_width,
-                name=tool_name,
             )
 
     @staticmethod
@@ -175,6 +175,7 @@ class KinematicChainViewer:
             key: value for key, value in kwargs.items()
             if key in frame_params
         }
+
         unknown_kwargs = set(kwargs) - scene_params - frame_params
         if unknown_kwargs:
             raise TypeError(
@@ -183,7 +184,7 @@ class KinematicChainViewer:
             )
 
         ws = self._create_scene(**scene_kwargs)
-        frame_scale = frame_kwargs.get("scale", 1 / self.min_link_length)
+        frame_scale = frame_kwargs.get("scale", 0.5)
 
         for frame in self._get_link_frames():
             ws.add_frame(frame, scale=frame_scale)
@@ -241,8 +242,9 @@ class KinematicChainViewer:
         -------
         None
         """
+        jupyter_backend = kwargs.pop("jupyter_backend", None)
         ws = self._plot(**kwargs)
-        await ws.show_async()
+        await ws.show_async(jupyter_backend)
 
     def animate(
         self,
@@ -316,7 +318,7 @@ class KinematicChainViewer:
         animator.animate_chain_sequence(
             chain=self.kinematic_chain,
             joint_coord_sets=joint_coord_sets,
-            frame_scale=animator_kwargs.get("frame_scale", 1 / self.min_link_length),
+            frame_scale=animator_kwargs.get("frame_scale", 0.5),
             link_line_width=animator_kwargs.get("link_line_width", 5.0),
             show_frames=animator_kwargs.get("show_frames", True),
             frame_names=None,

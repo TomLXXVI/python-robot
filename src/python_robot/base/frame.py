@@ -36,7 +36,8 @@ class Frame:
         self,
         origin: ArrayLike3,
         orient_angles: ArrayLike3,
-        angle_unit: AngleUnit = "rad"
+        angle_unit: AngleUnit = "rad",
+        name: str | None = None,
     ) -> None:
         """
         Creates a Frame object.
@@ -58,6 +59,7 @@ class Frame:
         self.origin = origin
         self.orient_angles = orient_angles
         self.angle_unit = angle_unit
+        self.name = name
 
         self._origin_mat = SE3.Trans(*self.origin)
         self._orient_mat = SO3.RPY(*self.orient_angles, unit=self.angle_unit, order="zyx")
@@ -340,7 +342,12 @@ class Frame:
 
 # The "World Reference Frame" can be any frame that is used as a reference frame
 # for one or more other frames.
-WREF_FRAME = Frame(origin=(0, 0, 0), orient_angles=(0, 0, 0), angle_unit="deg")
+WREF_FRAME = Frame(
+    origin=(0, 0, 0),
+    orient_angles=(0, 0, 0),
+    angle_unit="deg",
+    name="W"
+)
 
 
 def orientation_rate_of_change(
@@ -410,7 +417,45 @@ def pose_rate_of_change(
 
 # noinspection PyUnresolvedReferences
 def _plot_frames(frames: list[Frame], **kwargs) -> 'WorldScene':
+    """
+    Plots the list of Frames in 3D-space.
 
+    Parameters
+    ----------
+    frames: list[Frame]
+        List of Frame objects.
+    kwargs
+        Additional keyword arguments for setting up the plot.
+
+            extent : float, default=4.0
+                Default half-size used by the grid helper methods.
+            spacing : float, default=1.0
+                Default spacing used by the grid helper methods.
+            grid_color : str, default="lightgray"
+                Default color of ordinary grid lines.
+            axis_color : str, default="black"
+                Default color of the main axes in a grid.
+            background_color : str, default="white"
+                Background color of the render window.
+            off_screen : bool, default=False
+                Whether the plotter renders off-screen.
+            window_size : tuple[int, int], default=(1200, 900)
+                Window size of the plotter.
+            scale: float, default=1.0
+                Scale of the frames.
+            line_width: float, default=2.0
+                Line width of the frames.
+            show_label: bool, default=True
+                Whether to show the frame names or not.
+            label_offset: float, default=0.1
+                Offset w.r.t. the frame's Z-axis for positioning its label.
+            label_font_size: int, default=14
+                Font size of the frame labels.
+
+    Returns
+    -------
+    WorldScene
+    """
     from ..visualisation import WorldScene
     from ..utils.introspection import get_valid_keyword_parameters
 
@@ -422,17 +467,14 @@ def _plot_frames(frames: list[Frame], **kwargs) -> 'WorldScene':
         WorldScene.add_frame,
         exclude={"self", "frame"}
     )
-
     scene_kwargs = {
         key: value for key, value in kwargs.items()
         if key in scene_params
     }
-
     frame_kwargs = {
         key: value for key, value in kwargs.items()
         if key in frame_params
     }
-
     unknown_kwargs = set(kwargs) - scene_params - frame_params
     if unknown_kwargs:
         raise TypeError(
@@ -488,5 +530,6 @@ async def plot_frames_async(frames: list[Frame], **kwargs) -> None:
     -------
     None
     """
+    jupyter_backend = kwargs.pop("jupyter_backend", None)
     ws = _plot_frames(frames, **kwargs)
-    await ws.show_async()
+    await ws.show_async(jupyter_backend)
