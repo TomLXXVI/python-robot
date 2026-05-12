@@ -28,7 +28,6 @@ class KinematicChainViewer:
 
     def __init__(self, kinematic_chain: KinematicChain) -> None:
         self.kinematic_chain = kinematic_chain
-        # self.min_link_length = min([link.link_length for link in kinematic_chain if link.link_length])
 
     def _get_link_frames(self) -> list[Frame]:
         return [
@@ -60,17 +59,48 @@ class KinematicChainViewer:
     def _add_tool_visual(
         self,
         ws: WorldScene,
-        tool_visual: ToolVisual,
-        frame_scale: float,
-        tool_frame_scale: float | None,
-        tool_frame_line_width: float,
-        tool_point_color: str,
-        tool_point_size: float,
-        tool_link_color: str,
-        tool_link_line_width: float,
-        tool_name: str | None,
+        tool_visual: ToolVisual = "auto",
+        tool_frame_scale: float = 1.0,
+        tool_frame_line_width: float = 2.0,
+        tool_point_color: str = "darkorange",
+        tool_point_size: float = 12.0,
+        tool_link_color: str = "darkorange",
+        tool_link_line_width: float = 3.0,
+        tool_name: str | None = "TCP",
     ) -> None:
-        resolved = self._resolve_tool_visual(tool_visual)
+        """
+        Adds a tool frame visual to the kinematic chain plot.
+
+        Parameters
+        ----------
+        ws: WorldScene
+            PyVista scene object used to plot the kinematic chain.
+        tool_visual : {'auto', 'none', 'point', 'frame', 'both'}, default='auto'
+            How to visualize the tool/TCP frame. With 'auto', no tool is drawn
+            when the tool frame is the identity transform; otherwise a smaller
+            TCP frame is drawn.
+        tool_frame_scale : float, default=1.0
+            Axis length for the TCP frame. If None, a scale relative to the link
+            frame scale is used.
+        tool_frame_line_width : float, default=2.0
+            Line width of the TCP frame axes.
+        tool_point_color : str, default='darkorange'
+            Color used for the TCP point when `tool_visual` is 'point' or
+            'both'.
+        tool_point_size : float, default=12.0
+            Marker size of the TCP point.
+        tool_link_color : str, default='darkorange'
+            Color of the segment from the last link frame to the TCP.
+        tool_link_line_width : float, default=3.0
+            Line width of the segment from the last link frame to the TCP.
+        tool_name : str | None, default='TCP'
+            Optional label for the TCP point or frame.
+
+        Returns
+        -------
+        None
+        """
+        resolved = self._resolve_tool_visual(tool_visual)  # type: ignore
         if resolved == "none":
             return
 
@@ -99,16 +129,59 @@ class KinematicChainViewer:
         if resolved in ("frame", "both"):
             ws.add_frame(
                 tool_frame,
-                scale=tool_frame_scale if tool_frame_scale is not None else 0.7 * frame_scale,
+                scale=tool_frame_scale,
                 line_width=tool_frame_line_width,
             )
 
+    def _kwargs_dispatcher(self, **kwargs):
+        frame_scale = kwargs.pop("frame_scale", 1.0)
+        world_frame_scale = kwargs.pop("world_frame_scale", 1.0)
+
+        scene_params = get_valid_keyword_parameters(
+            WorldScene.__init__,
+            exclude={"self"}
+        )
+        frame_params = get_valid_keyword_parameters(
+            WorldScene.add_frame,
+            exclude={"self", "frame"}
+        )
+        tool_visual_params = get_valid_keyword_parameters(
+            self._add_tool_visual,
+            exclude={"self", "ws"}
+        )
+
+        scene_kwargs = {
+            key: value for key, value in kwargs.items()
+            if key in scene_params
+        }
+        frame_kwargs = {
+            key: value for key, value in kwargs.items()
+            if key in frame_params
+        }
+        tool_visual_kwargs = {
+            key: value for key, value in kwargs.items()
+            if key in tool_visual_params
+        }
+
+        unknown_kwargs = set(kwargs) - scene_params - frame_params - tool_visual_params
+        if unknown_kwargs:
+            raise TypeError(
+                f"Unknown plot_frames keyword argument(s): "
+                f"{', '.join(sorted(unknown_kwargs))}"
+            )
+
+        scene_kwargs.update({"scale": world_frame_scale})
+        frame_kwargs.update({"scale": frame_scale})
+
+        return scene_kwargs, frame_kwargs, tool_visual_kwargs
+
     @staticmethod
     def _create_scene(**kwargs) -> WorldScene:
+        scale = kwargs.pop("scale", 1.0)
         ws = WorldScene(**kwargs)
         ws.camera.enable_view_shortcuts()
         ws.add_plane_grid()
-        ws.add_world_frame()
+        ws.add_world_frame(scale=scale)
         return ws
 
     def _plot(self, **kwargs) -> WorldScene:
@@ -121,26 +194,7 @@ class KinematicChainViewer:
 
         Parameters
         ----------
-        tool_visual : {'auto', 'none', 'point', 'frame', 'both'}, default='auto'
-            How to visualize the tool/TCP frame. With 'auto', no tool is drawn
-            when the tool frame is the identity transform; otherwise a smaller
-            TCP frame is drawn.
-        tool_frame_scale : float | None, optional
-            Axis length for the TCP frame. If None, a scale relative to the link
-            frame scale is used.
-        tool_frame_line_width : float, default=2.0
-            Line width of the TCP frame axes.
-        tool_point_color : str, default='darkorange'
-            Color used for the TCP point when `tool_visual` is 'point' or
-            'both'.
-        tool_point_size : float, default=12.0
-            Marker size of the TCP point.
-        tool_link_color : str, default='darkorange'
-            Color of the segment from the last link frame to the TCP.
-        tool_link_line_width : float, default=3.0
-            Line width of the segment from the last link frame to the TCP.
-        tool_name : str | None, default='TCP'
-            Optional label for the TCP point or frame.
+
         **kwargs
             Additional keyword arguments for `WorldScene.__init__()` and
             `WorldScene.add_frame()`.
@@ -150,59 +204,19 @@ class KinematicChainViewer:
         WorldScene
             Scene containing the current manipulator visualization.
         """
-        tool_visual: ToolVisual = kwargs.pop("tool_visual", "auto")
-        tool_frame_scale = kwargs.pop("tool_frame_scale", None)
-        tool_frame_line_width = kwargs.pop("tool_frame_line_width", 2.0)
-        tool_point_color = kwargs.pop("tool_point_color", "darkorange")
-        tool_point_size = kwargs.pop("tool_point_size", 12.0)
-        tool_link_color = kwargs.pop("tool_link_color", "darkorange")
-        tool_link_line_width = kwargs.pop("tool_link_line_width", 3.0)
-        tool_name = kwargs.pop("tool_name", "TCP")
-
-        scene_params = get_valid_keyword_parameters(
-            WorldScene.__init__,
-            exclude={"self"}
-        )
-        frame_params = get_valid_keyword_parameters(
-            WorldScene.add_frame,
-            exclude={"self", "frame"}
-        )
-        scene_kwargs = {
-            key: value for key, value in kwargs.items()
-            if key in scene_params
-        }
-        frame_kwargs = {
-            key: value for key, value in kwargs.items()
-            if key in frame_params
-        }
-
-        unknown_kwargs = set(kwargs) - scene_params - frame_params
-        if unknown_kwargs:
-            raise TypeError(
-                f"Unknown plot_frames keyword argument(s): "
-                f"{', '.join(sorted(unknown_kwargs))}"
-            )
+        scene_kwargs, frame_kwargs, tool_visual_kwargs = self._kwargs_dispatcher(**kwargs)
 
         ws = self._create_scene(**scene_kwargs)
-        frame_scale = frame_kwargs.get("scale", 0.5)
 
         for frame in self._get_link_frames():
-            ws.add_frame(frame, scale=frame_scale)
+            ws.add_frame(frame, **frame_kwargs)
 
         for p1, p2 in self._get_link_endpoints():
             ws.add_link(p1=p1, p2=p2)
 
         self._add_tool_visual(
             ws=ws,
-            tool_visual=tool_visual,
-            frame_scale=frame_scale,
-            tool_frame_scale=tool_frame_scale,
-            tool_frame_line_width=tool_frame_line_width,
-            tool_point_color=tool_point_color,
-            tool_point_size=tool_point_size,
-            tool_link_color=tool_link_color,
-            tool_link_line_width=tool_link_line_width,
-            tool_name=tool_name,
+            **tool_visual_kwargs
         )
 
         return ws

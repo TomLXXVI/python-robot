@@ -14,7 +14,8 @@ __all__ = ["SerialLinkManipulator"]
 
 class SerialLinkManipulator(KinematicChain):
     """
-    Represents a serial-links manipulator with kinematic and dynamic properties.
+    Models a serial-link, single-arm manipulator for kinematic and dynamic
+    simulations.
     """
     def __init__(
         self,
@@ -23,6 +24,25 @@ class SerialLinkManipulator(KinematicChain):
         base_frame: Frame | None = None,
         tool_frame: Frame | None = None,
     ) -> None:
+        """
+        Creates a SerialLinkManipulator object.
+
+        Parameters
+        ----------
+        links: Sequence[AbstractLink]
+            List of links in the chain, ordered from base to tool.
+        joint_coords: Sequence[float], optional
+            Initial values for the joint variables of the links. If None, all
+            joint variables are set to zero.
+        base_frame: Frame, optional.
+            Fixed base frame of the kinematic chain relative to the station
+            frame or world frame. If None, the base frame coincides with the
+            world frame.
+        tool_frame: Frame, optional.
+            Tool-center point (TCP) frame or end-effector frame relative to the
+            frame of the last link in the kinematic chain. If None, the tool
+            frame coincides with the last link frame.
+        """
         super().__init__(links, joint_coords, base_frame, tool_frame)
         self._viewer = KinematicChainViewer(self)
 

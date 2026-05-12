@@ -132,8 +132,9 @@ class AbstractKinematicChain(MutableSequence[AbstractLink], ABC):
 
 class KinematicChain(AbstractKinematicChain):
     """
-    Represents the kinematic chain of a manipulator, implemented as a list
-    of links ordered from the base to the tool-end of the manipulator.
+    Represents the kinematic chain of a serial-link, single-arm manipulator,
+    implemented as a list of links ordered from the base to the tool-end of the
+    manipulator.
     """
     def __init__(
         self,
@@ -152,9 +153,6 @@ class KinematicChain(AbstractKinematicChain):
         joint_coords: Sequence[float], optional
             Initial values for the joint variables of the links. If None, all
             joint variables are set to zero.
-            In the case of joint coordinates that are angles, the unit of the
-            angles must be the same angle unit that was assigned to the links
-            when instantiating these links.
         base_frame: Frame, optional.
             Fixed base frame of the kinematic chain relative to the station
             frame or world frame. If None, the base frame coincides with the
@@ -180,7 +178,7 @@ class KinematicChain(AbstractKinematicChain):
     @property
     def links(self) -> list[AbstractLink]:
         """
-        Returns the list of links in the chain (with zero-based indexing).
+        Returns the list of links in the chain (zero-based index).
         """
         return self._links
 
