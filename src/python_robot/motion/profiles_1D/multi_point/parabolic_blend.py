@@ -137,7 +137,7 @@ class PathPoint:
         if self.is_start() and self.segment_out is not None:
             s1 = self.s
             s2 = self.segment_out.end_point.s
-            a = np.sign(s2 - s1) * self.a_abs
+            a =  np.sign(s2 - s1) * self.a_abs
             return a
         if self.is_end() and self.segment_in is not None:
             s1 = self.segment_in.start_point.s
@@ -160,6 +160,8 @@ class PathPoint:
             dt = self.segment_out.dt
             s1 = self.s
             s2 = self.segment_out.end_point.s
+            if np.isclose(s2, s1):
+                return 0.0
             a = self.a
             D = np.sqrt(dt**2 - 2 * (s2 - s1) / a)
             if D < 0.0 or np.isnan(D):
@@ -174,6 +176,8 @@ class PathPoint:
             dt = self.segment_in.dt
             s1 = self.segment_in.start_point.s
             s2 = self.s
+            if np.isclose(s2, s1):
+                return 0.0
             a = self.a
             D = np.sqrt(dt**2 + 2 * (s2 - s1) / a)
             if D < 0.0 or np.isnan(D):
@@ -187,6 +191,8 @@ class PathPoint:
         # interior path point
         v1 = self.segment_in.v_lin if self.segment_in else 0.0
         v2 = self.segment_out.v_lin if self.segment_out else 0.0
+        if np.isclose(v2, v1):
+            return 0.0
         dt_b = (v2 - v1) / self.a
         return dt_b
 
@@ -285,6 +291,7 @@ class MultiLinearPath(MultiPointMotionProfile):
 
         self.segments: list[PathSegment] = []
         self._create_segments()
+        self._validate_piece_durations()
         self.pieces: list[PathPiece] = []
         self._build_pieces()
 
@@ -332,6 +339,23 @@ class MultiLinearPath(MultiPointMotionProfile):
         a_tuples = list(zip(self.a_abs_seq[:-1], self.a_abs_seq[1:]))
         for i in range(self.n_segments):
             self._create_segment(i, s_tuples[i], a_tuples[i], self.dt_seq[i])
+
+    def _validate_piece_durations(self) -> None:
+        """
+        Check that all blends leave a non-negative linear section.
+        """
+        for segment in self.segments:
+            start_blend = segment.start_point.dt_b
+            end_blend = segment.end_point.dt_b
+            dt_lin = segment.dt_lin
+
+            if start_blend < 0.0 or end_blend < 0.0 or dt_lin < 0.0:
+                raise ValueError(
+                    f"Blend accelerations are too small for segment {segment.i}. "
+                    f"The resulting linear duration is {dt_lin:.6g}. "
+                    "Increase blend_accels, increase segment duration, or use "
+                    "path points with smaller direction changes."
+                )
 
     def _build_pieces(self) -> None:
         """

@@ -35,7 +35,7 @@ class Frame:
     def __init__(
         self,
         origin: ArrayLike3,
-        orient_angles: ArrayLike3,
+        rpy_angles: ArrayLike3,
         angle_unit: AngleUnit = "rad",
         name: str | None = None,
     ) -> None:
@@ -47,7 +47,7 @@ class Frame:
         origin : ArrayLike3
             Origin (x, y, z) of the frame in space as seen from its reference
             frame.
-        orient_angles : ArrayLike3
+        rpy_angles : ArrayLike3
             Defines the orientation of the frame in space by three angles. The
             first angle is the rotation angle about the X-axis (roll angle), the
             second angle about the Y-axis (pitch angle), and the third angle
@@ -57,12 +57,12 @@ class Frame:
             Unit of the orientation angles.
         """
         self.origin = origin
-        self.orient_angles = orient_angles
+        self.rpy_angles = rpy_angles
         self.angle_unit = angle_unit
         self.name = name
 
         self._origin_mat = SE3.Trans(*self.origin)
-        self._orient_mat = SO3.RPY(*self.orient_angles, unit=self.angle_unit, order="zyx")
+        self._orient_mat = SO3.RPY(*self.rpy_angles, unit=self.angle_unit, order="zyx")
         self._matrix = SE3.Rt(self._orient_mat, self.origin)
 
     def __str__(self) -> str:
@@ -71,9 +71,9 @@ class Frame:
             f"[x: {float(self.origin[0]):.4g}, "
             f"y: {float(self.origin[1]):.4g}, "
             f"z: {float(self.origin[2]):.4g}], "
-            f"[alpha: {float(self.orient_angles[0]):.4g} {self.angle_unit}, "
-            f"beta: {float(self.orient_angles[1]):.4g} {self.angle_unit}, "
-            f"gamma: {float(self.orient_angles[2]):.4g} {self.angle_unit}])"
+            f"[alpha: {float(self.rpy_angles[0]):.4g} {self.angle_unit}, "
+            f"beta: {float(self.rpy_angles[1]):.4g} {self.angle_unit}, "
+            f"gamma: {float(self.rpy_angles[2]):.4g} {self.angle_unit}])"
         )
 
     @property
@@ -344,7 +344,7 @@ class Frame:
 # for one or more other frames.
 WREF_FRAME = Frame(
     origin=(0, 0, 0),
-    orient_angles=(0, 0, 0),
+    rpy_angles=(0, 0, 0),
     angle_unit="deg",
     name="W"
 )

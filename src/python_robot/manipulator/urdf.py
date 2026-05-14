@@ -1,12 +1,13 @@
 from __future__ import annotations
+from typing import Sequence, Any
 
 from copy import deepcopy
 from pathlib import Path
-from typing import Sequence
 
 import numpy as np
 from roboticstoolbox import ERobot, ETS
 from roboticstoolbox import Link as RTBLink
+from roboticstoolbox.tools import URDF
 from spatialmath import SE3
 
 from python_robot.base import Frame
@@ -37,31 +38,39 @@ class URDFManipulator(SerialLinkManipulator):
         tool_frame: Frame | None = None,
         tld: str | Path | None = None,
         xacro_tld: str | Path | None = None,
+        *,
+        plot_options: dict[str, Any] | None = None,
+        anim_options: dict[str, Any] | None = None,
     ) -> None:
         """
         Read a URDF/xacro model and build a serial manipulator from it.
 
         Parameters
         ----------
-        file_path:
+        file_path: str | Path
             URDF or xacro path passed to Robotics Toolbox. If ``tld`` is not
             provided, Robotics Toolbox interprets this path relative to its
             bundled ``rtbdata/xacro`` directory. If ``tld`` is provided,
             ``file_path`` must be relative to that directory instead.
-        joint_coords:
-            Optional initial joint configuration for the active joints.
-        base_frame:
-            Optional pose of the manipulator base with respect to the world.
-        tool_frame:
-            Optional extra TCP/tool transform appended after the URDF tip.
-        tld:
-            Optional top-level directory used as the base path for
-            ``file_path``. Provide this when importing URDF/xacro files from
-            a project-local folder rather than RTB's bundled data tree.
-        xacro_tld:
-            Optional path, relative to the active top-level directory, used by
-            Robotics Toolbox while expanding xacro includes and related
-            resources.
+        joint_coords: Sequence[float], optional
+            Initial joint configuration for the active joints.
+        base_frame: Frame, optional
+            Pose of the manipulator base with respect to the world.
+        tool_frame: Frame, optional
+            Extra TCP/tool transform appended after the URDF tip.
+        tld: str | Path, optional
+            Top-level directory used as the base path for ``file_path``. Provide
+            this when importing URDF/xacro files from a project-local folder
+            rather than RTB's bundled data tree.
+        xacro_tld: str | Path, optional
+            Path relative to the active top-level directory used by Robotics
+            Toolbox while expanding xacro includes and related resources.
+        plot_options: dict[str, Any], optional
+            Global plot options used with every call to ``plot()`` or
+            ``plot_async()``. See superclass ``SerialLinkManipulator``.
+        anim_options: dict[str, Any], optional
+            Global animation options used with every call to ``animate()`` or
+            ``animate_async()``.
         """
         rtb_links, name, urdf_string, urdf_path = ERobot.URDF_read(
             str(file_path),
@@ -91,6 +100,8 @@ class URDFManipulator(SerialLinkManipulator):
             joint_coords=joint_coords,
             base_frame=base_frame,
             tool_frame=resolved_tool_frame,
+            plot_options=plot_options,
+            anim_options=anim_options
         )
 
         self._name = name
@@ -147,6 +158,10 @@ class URDFManipulator(SerialLinkManipulator):
         Return the active URDF joint names ordered from base to tool.
         """
         return self._joint_names
+
+    @property
+    def urdf(self):
+        return URDF.loadstr(self.urdf_string, self.urdf_path, self.urdf_path.parent)
 
     @staticmethod
     def _ordered_active_branch_links(links: Sequence[RTBLink]) -> list[RTBLink]:

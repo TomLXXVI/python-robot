@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Any
 
 import numpy as np
 from roboticstoolbox import ERobot
@@ -23,6 +23,9 @@ class SerialLinkManipulator(KinematicChain):
         joint_coords: Sequence[float] | None = None,
         base_frame: Frame | None = None,
         tool_frame: Frame | None = None,
+        *,
+        plot_options: dict[str, Any] | None = None,
+        anim_options: dict[str, Any] | None = None,
     ) -> None:
         """
         Creates a SerialLinkManipulator object.
@@ -42,9 +45,18 @@ class SerialLinkManipulator(KinematicChain):
             Tool-center point (TCP) frame or end-effector frame relative to the
             frame of the last link in the kinematic chain. If None, the tool
             frame coincides with the last link frame.
+        plot_options: dict[str, Any], optional
+            Global plot options used with every call to plot() or plot_async().
+        anim_options: dict[str, Any], optional
+            Global animation options used with every call to animate() or
+            animate_async().
         """
         super().__init__(links, joint_coords, base_frame, tool_frame)
         self._viewer = KinematicChainViewer(self)
+        if plot_options is not None:
+            self.set_plot_options(**plot_options)
+        if anim_options is not None:
+            self.set_animation_options(**anim_options)
 
     @property
     def erobot(self) -> ERobot:
@@ -110,6 +122,9 @@ class SerialLinkManipulator(KinematicChain):
 
         return np.asarray(tau, dtype=float)
 
+    def set_plot_options(self, **kwargs) -> None:
+        self._viewer.set_plot_options(**kwargs)
+
     def plot(self, **kwargs) -> None:
         """
         Plots the current joint configuration of the kinematic chain in
@@ -148,17 +163,12 @@ class SerialLinkManipulator(KinematicChain):
         """
         await self._viewer.plot_async(**kwargs)
 
+    def set_animation_options(self, **kwargs) -> None:
+        self._viewer.set_animation_options(**kwargs)
+
     def animate(
         self,
-        joint_angle_sets: Sequence[Sequence[float]],
-        fps: int = 20,
-        step: int = 1,
-        gif_path: str | None = None,
-        mp4_path: str | None = None,
-        show: bool = True,
-        show_ee_path: bool = False,
-        ee_path_color: str = "orange",
-        ee_path_line_width: float = 3.0,
+        joint_coords: Sequence[Sequence[float]],
         **kwargs
     ) -> None:
         """
@@ -168,14 +178,21 @@ class SerialLinkManipulator(KinematicChain):
         `manipulator.visualisation.KinematicChainViewer`.
         """
         self._viewer.animate(
-            joint_coord_sets=joint_angle_sets,
-            fps=fps,
-            step=step,
-            gif_path=gif_path,
-            mp4_path=mp4_path,
-            show=show,
-            show_ee_path=show_ee_path,
-            ee_path_color=ee_path_color,
-            ee_path_line_width=ee_path_line_width,
+            joint_coords=joint_coords,
+            **kwargs
+        )
+
+    async def animate_async(
+        self,
+        joint_coords: Sequence[Sequence[float]],
+        **kwargs
+    ) -> None:
+        """
+        Animate a sequence of manipulator joint configurations asynchronously.
+
+        Use this method in Jupyter notebooks and other async contexts.
+        """
+        await self._viewer.animate_async(
+            joint_coords=joint_coords,
             **kwargs
         )

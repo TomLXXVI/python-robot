@@ -1,4 +1,4 @@
-from typing import Literal, Sequence
+from typing import Literal, Sequence, Any
 
 import numpy as np
 
@@ -28,6 +28,12 @@ class KinematicChainViewer:
 
     def __init__(self, kinematic_chain: KinematicChain) -> None:
         self.kinematic_chain = kinematic_chain
+
+        self._plot_scene_kwargs: dict[str, Any] = {}
+        self._plot_frame_kwargs: dict[str, Any] = {}
+        self._plot_tool_visual_kwargs: dict[str, Any] = {}
+        self._anim_scene_kwargs: dict[str, Any] = {}
+        self._anim_anim_kwargs: dict[str, Any] = {}
 
     def _get_link_frames(self) -> list[Frame]:
         return [
@@ -129,35 +135,38 @@ class KinematicChainViewer:
         if resolved in ("frame", "both"):
             ws.add_frame(
                 tool_frame,
-                scale=tool_frame_scale,
+                frame_scale=tool_frame_scale,
                 line_width=tool_frame_line_width,
             )
 
-    def _kwargs_dispatcher(self, **kwargs):
-        frame_scale = kwargs.pop("frame_scale", 1.0)
-        world_frame_scale = kwargs.pop("world_frame_scale", 1.0)
+    def _plot_kwargs_dispatcher(self, **kwargs) -> tuple[dict[str, Any], ...]:
+        world_frame_scale = kwargs.pop(
+            "world_frame_scale",
+            self._plot_scene_kwargs.get("world_frame_scale", 1.0)
+        )
 
         scene_params = get_valid_keyword_parameters(
             WorldScene.__init__,
             exclude={"self"}
         )
-        frame_params = get_valid_keyword_parameters(
-            WorldScene.add_frame,
-            exclude={"self", "frame"}
-        )
-        tool_visual_params = get_valid_keyword_parameters(
-            self._add_tool_visual,
-            exclude={"self", "ws"}
-        )
-
         scene_kwargs = {
             key: value for key, value in kwargs.items()
             if key in scene_params
         }
+
+        frame_params = get_valid_keyword_parameters(
+            WorldScene.add_frame,
+            exclude={"self", "frame"}
+        )
         frame_kwargs = {
             key: value for key, value in kwargs.items()
             if key in frame_params
         }
+
+        tool_visual_params = get_valid_keyword_parameters(
+            self._add_tool_visual,
+            exclude={"self", "ws"}
+        )
         tool_visual_kwargs = {
             key: value for key, value in kwargs.items()
             if key in tool_visual_params
@@ -170,18 +179,90 @@ class KinematicChainViewer:
                 f"{', '.join(sorted(unknown_kwargs))}"
             )
 
-        scene_kwargs.update({"scale": world_frame_scale})
-        frame_kwargs.update({"scale": frame_scale})
+        scene_kwargs.update({"world_frame_scale": world_frame_scale})
 
+        scene_kwargs.update({
+            k: v
+            for k, v in self._plot_scene_kwargs.items()
+            if k not in scene_kwargs.keys()
+        })
+        frame_kwargs.update({
+            k: v
+            for k, v in self._plot_frame_kwargs.items()
+            if k not in frame_kwargs.keys()
+        })
+        tool_visual_kwargs.update({
+            k: v
+            for k, v in self._plot_tool_visual_kwargs.items()
+            if k not in tool_visual_kwargs.keys()
+        })
         return scene_kwargs, frame_kwargs, tool_visual_kwargs
+
+    def set_plot_options(self, **kwargs) -> None:
+        tup = self._plot_kwargs_dispatcher(**kwargs)
+        self._plot_scene_kwargs = tup[0]
+        self._plot_frame_kwargs = tup[1]
+        self._plot_tool_visual_kwargs = tup[2]
+
+    def _anim_kwargs_dispatcher(self, **kwargs) -> tuple[dict[str, Any], ...]:
+        world_frame_scale = kwargs.pop(
+            "world_frame_scale",
+            self._anim_scene_kwargs.get("world_frame_scale", 1.0)
+        )
+
+        scene_params = get_valid_keyword_parameters(
+            WorldScene.__init__,
+            exclude={"self"}
+        )
+        scene_kwargs = {
+            key: value for key, value in kwargs.items()
+            if key in scene_params
+        }
+
+        anim_params = get_valid_keyword_parameters(
+            KinematicChainAnimator.animate_chain_sequence,
+            exclude={"self"}
+        )
+        anim_kwargs = {
+            key: value for key, value in kwargs.items()
+            if key in anim_params
+        }
+
+        unknown_kwargs = set(kwargs) - scene_params - anim_params
+        if unknown_kwargs:
+            raise TypeError(
+                f"Unknown keyword argument(s): "
+                f"{', '.join(sorted(unknown_kwargs))}"
+            )
+
+        scene_kwargs.update({"world_frame_scale": world_frame_scale})
+
+        scene_kwargs.update({
+            k: v
+            for k, v in self._anim_scene_kwargs.items()
+            if k not in scene_kwargs.keys()
+        })
+        anim_kwargs.update({
+            k: v
+            for k, v in self._anim_anim_kwargs.items()
+            if k not in anim_kwargs.keys()
+        })
+        return scene_kwargs, anim_kwargs
+
+    def set_animation_options(self, **kwargs) -> None:
+        tup = self._anim_kwargs_dispatcher(**kwargs)
+        self._anim_scene_kwargs = tup[0]
+        self._anim_anim_kwargs = tup[1]
 
     @staticmethod
     def _create_scene(**kwargs) -> WorldScene:
-        scale = kwargs.pop("scale", 1.0)
+        world_frame_scale = kwargs.pop("world_frame_scale", 1.0)
+
         ws = WorldScene(**kwargs)
         ws.camera.enable_view_shortcuts()
         ws.add_plane_grid()
-        ws.add_world_frame(scale=scale)
+        ws.add_world_frame(frame_scale=world_frame_scale)
+
         return ws
 
     def _plot(self, **kwargs) -> WorldScene:
@@ -204,7 +285,7 @@ class KinematicChainViewer:
         WorldScene
             Scene containing the current manipulator visualization.
         """
-        scene_kwargs, frame_kwargs, tool_visual_kwargs = self._kwargs_dispatcher(**kwargs)
+        scene_kwargs, frame_kwargs, tool_visual_kwargs = self._plot_kwargs_dispatcher(**kwargs)
 
         ws = self._create_scene(**scene_kwargs)
 
@@ -260,17 +341,18 @@ class KinematicChainViewer:
         ws = self._plot(**kwargs)
         await ws.show_async(jupyter_backend)
 
+    def _animate(
+        self,
+        **kwargs
+    ) -> tuple[KinematicChainAnimator, dict[str, Any]]:
+        scene_kwargs, anim_kwargs = self._anim_kwargs_dispatcher(**kwargs)
+        ws = self._create_scene(**scene_kwargs)
+        animator = KinematicChainAnimator(ws)
+        return animator, anim_kwargs
+
     def animate(
         self,
-        joint_coord_sets: Sequence[Sequence[float]],
-        fps: int = 20,
-        step: int = 1,
-        gif_path: str | None = None,
-        mp4_path: str | None = None,
-        show: bool = True,
-        show_ee_path: bool = False,
-        ee_path_color: str = "orange",
-        ee_path_line_width: float = 3.0,
+        joint_coords: Sequence[Sequence[float]],
         **kwargs
     ) -> None:
         """
@@ -278,78 +360,35 @@ class KinematicChainViewer:
 
         Parameters
         ----------
-        joint_coord_sets : Sequence[Sequence[float]]
+        joint_coords : Sequence[Sequence[float]]
             Sequence of joint-coordinate vectors. Each item is one full
             manipulator configuration, with joints ordered from the base toward
             the tool end of the chain.
-        fps : int, default=20
-            Playback rate.
-        step : int, default=1
-            Use every ``step``-th configuration.
-        gif_path, mp4_path : str | Path | None
-            Optional output file.
-        show : bool, default=True
-            Whether to show the render window.
-        show_ee_path : bool, default=False
-            If True, draw the path traced by the end-effector during the
-            animation.
-        ee_path_color : str, default="orange"
-            Color of the end-effector path.
-        ee_path_line_width : float, default=3.0
-            Line width of the end-effector path.
         **kwargs
             Additional keyword arguments for `WorldScene.__init__()` and
-            `KinematicChainAnimator.animate_chain_sequence()`. This includes
-            tool/TCP options such as `tool_visual`, `tool_frame_scale`,
-            `tool_point_color`, and `tool_name`.
+            `KinematicChainAnimator.animate_chain_sequence()`.
         """
-        scene_params = get_valid_keyword_parameters(
-            WorldScene.__init__,
-            exclude={"self"}
-        )
-        animator_params = get_valid_keyword_parameters(
-            KinematicChainAnimator.animate_chain_sequence,
-            exclude={"self"}
-        )
-        scene_kwargs = {
-            key: value for key, value in kwargs.items()
-            if key in scene_params
-        }
-        animator_kwargs = {
-            key: value for key, value in kwargs.items()
-            if key in animator_params
-        }
-        unknown_kwargs = set(kwargs) - scene_params - animator_params
-        if unknown_kwargs:
-            raise TypeError(
-                f"Unknown keyword argument(s): "
-                f"{', '.join(sorted(unknown_kwargs))}"
-            )
-
-        ws = self._create_scene(**scene_kwargs)
-
-        animator = KinematicChainAnimator(ws)
+        animator, anim_kwargs = self._animate(**kwargs)
         animator.animate_chain_sequence(
             chain=self.kinematic_chain,
-            joint_coord_sets=joint_coord_sets,
-            frame_scale=animator_kwargs.get("frame_scale", 0.5),
-            link_line_width=animator_kwargs.get("link_line_width", 5.0),
-            show_frames=animator_kwargs.get("show_frames", True),
-            frame_names=None,
-            fps=fps,
-            step=step,
-            gif_path=gif_path,
-            mp4_path=mp4_path,
-            show=show,
-            show_ee_path=show_ee_path,
-            ee_path_color=ee_path_color,
-            ee_path_line_width=ee_path_line_width,
-            tool_visual=animator_kwargs.get("tool_visual", "auto"),
-            tool_frame_scale=animator_kwargs.get("tool_frame_scale", None),
-            tool_frame_line_width=animator_kwargs.get("tool_frame_line_width", 2.0),
-            tool_point_color=animator_kwargs.get("tool_point_color", "darkorange"),
-            tool_point_size=animator_kwargs.get("tool_point_size", 12.0),
-            tool_link_color=animator_kwargs.get("tool_link_color", "darkorange"),
-            tool_link_line_width=animator_kwargs.get("tool_link_line_width", 3.0),
-            tool_name=animator_kwargs.get("tool_name", "TCP"),
+            joint_coord_sets=joint_coords,
+            **anim_kwargs
+        )
+
+    async def animate_async(
+        self,
+        joint_coords: Sequence[Sequence[float]],
+        **kwargs
+    ) -> None:
+        """
+        Animate a sequence of manipulator joint configurations asynchronously.
+
+        This is the asynchronous counterpart of `animate()` and is intended
+        for Jupyter notebooks and other async contexts. Call it with `await`.
+        """
+        animator, anim_kwargs = self._animate(**kwargs)
+        await animator.animate_chain_sequence_async(
+            chain=self.kinematic_chain,
+            joint_coord_sets=joint_coords,
+            **anim_kwargs
         )

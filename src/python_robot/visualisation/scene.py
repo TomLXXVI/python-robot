@@ -48,6 +48,97 @@ class Camera:
         """Reset the camera so that all visible actors fit in the view."""
         self.plotter.reset_camera()
 
+    def set_pose(
+        self,
+        position: ArrayLike3 | None = None,
+        focal_point: ArrayLike3 | None = None,
+        up: ArrayLike3 | None = None,
+        render: bool = True,
+    ) -> None:
+        """
+        Set the camera pose.
+
+        Parameters
+        ----------
+        position : ArrayLike3 | None, default=None
+            Camera position in world coordinates.
+        focal_point : ArrayLike3 | None, default=None
+            Point the camera looks at.
+        up : ArrayLike3 | None, default=None
+            Camera up direction.
+        render : bool, default=True
+            If True, render the scene after updating the camera.
+        """
+        cam = self.plotter.camera
+
+        if position is not None:
+            cam.position = tuple(np.asarray(position, dtype=float).reshape(3))
+        if focal_point is not None:
+            cam.focal_point = tuple(np.asarray(focal_point, dtype=float).reshape(3))
+        if up is not None:
+            cam.up = tuple(np.asarray(up, dtype=float).reshape(3))
+
+        self.plotter.reset_camera_clipping_range()
+        if render:
+            self.plotter.render()
+
+    def move(
+        self,
+        delta: ArrayLike3,
+        move_focal_point: bool = True,
+        render: bool = True,
+    ) -> None:
+        """
+        Move the camera by a vector in world coordinates.
+
+        Parameters
+        ----------
+        delta : ArrayLike3
+            Camera displacement in world coordinates.
+        move_focal_point : bool, default=True
+            If True, move the focal point by the same displacement so the view
+            direction stays unchanged. If False, only the camera position moves.
+        render : bool, default=True
+            If True, render the scene after updating the camera.
+        """
+        cam = self.plotter.camera
+        delta_arr = np.asarray(delta, dtype=float).reshape(3)
+
+        position = np.asarray(cam.position, dtype=float)
+        focal_point = np.asarray(cam.focal_point, dtype=float)
+
+        cam.position = tuple(position + delta_arr)
+        if move_focal_point:
+            cam.focal_point = tuple(focal_point + delta_arr)
+
+        self.plotter.reset_camera_clipping_range()
+        if render:
+            self.plotter.render()
+
+    def scale_distance_to_focal_point(
+        self,
+        factor: float,
+        render: bool = True,
+    ) -> None:
+        """
+        Move the camera closer to or farther from its focal point.
+
+        A factor smaller than 1.0 moves the camera closer. A factor larger than
+        1.0 moves it farther away.
+        """
+        if factor <= 0.0:
+            raise ValueError("factor must be strictly positive.")
+
+        cam = self.plotter.camera
+        position = np.asarray(cam.position, dtype=float)
+        focal_point = np.asarray(cam.focal_point, dtype=float)
+
+        cam.position = tuple(focal_point + factor * (position - focal_point))
+
+        self.plotter.reset_camera_clipping_range()
+        if render:
+            self.plotter.render()
+
     def pan(self, dx: float = 0.0, dy: float = 0.0, amount: float = 0.1) -> None:
         cam = self.plotter.camera
 
@@ -87,6 +178,8 @@ class Camera:
         d : pan left
         w : pan down
         s : pan up
+        z : move camera closer
+        x : move camera farther
         """
         self.plotter.add_key_event("t", self.set_top_view)
         self.plotter.add_key_event("b", self.set_bottom_view)
@@ -100,6 +193,8 @@ class Camera:
         self.plotter.add_key_event("d", lambda : self.pan(dx=1.0))
         self.plotter.add_key_event("w", lambda : self.pan(dy=1.0))
         self.plotter.add_key_event("s", lambda : self.pan(dy=-1.0))
+        self.plotter.add_key_event("z", lambda : self.scale_distance_to_focal_point(0.85))
+        self.plotter.add_key_event("x", lambda : self.scale_distance_to_focal_point(1.15))
 
 
 class WorldScene:
@@ -334,7 +429,7 @@ class WorldScene:
 
     def add_world_frame(
         self,
-        scale: float = 1.0,
+        frame_scale: float = 1.0,
         line_width: float = 3.0,
         label: bool = True,
         label_offset: float = 0.1,
@@ -344,7 +439,7 @@ class WorldScene:
         """
         self.add_frame(
             frame=WREF_FRAME,
-            scale=scale,
+            frame_scale=frame_scale,
             line_width=line_width,
             show_label=label,
             label_offset=label_offset,
@@ -353,7 +448,7 @@ class WorldScene:
     def add_frame(
         self,
         frame: Frame,
-        scale: float = 1.0,
+        frame_scale: float = 1.0,
         line_width: float = 2.0,
         show_label: bool = True,
         label_offset: float = 0.1,
@@ -362,7 +457,7 @@ class WorldScene:
         """
         Add a static coordinate frame to the scene.
         """
-        origin, px, py, pz = self._frame_axis_endpoints(frame, scale)
+        origin, px, py, pz = self._frame_axis_endpoints(frame, frame_scale)
 
         self.plotter.add_mesh(pv.Line(origin, px), color="red", line_width=line_width)
         self.plotter.add_mesh(pv.Line(origin, py), color="green", line_width=line_width)
@@ -370,7 +465,7 @@ class WorldScene:
 
         if show_label and frame.name is not None:
             label_point = pz.copy()
-            label_point[2] += label_offset
+            label_point[2] += label_offset * frame_scale
             self._make_label_actor(
                 point=label_point,
                 text=frame.name,

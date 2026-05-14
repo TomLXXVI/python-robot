@@ -10,7 +10,7 @@ from ...charts import LineChart, CompositeLineChart
 from ...visualisation import WorldScene
 from ...utils import array_to_table
 from ...utils.introspection import get_valid_keyword_parameters
-from .joint_multi import JointSpaceMotion, MultiPointMotionProfile, MultiPointMotionProfileType
+from .joint_multi import JointSpaceMotion, MultiPointMotionProfile, MultiPointMotionProfileType, IKTarget
 from .cartesian_multi import CartesianMultiStraightLineMotion
 
 __all__ = [
@@ -36,7 +36,7 @@ class JointSpaceScheme:
         dt_segments: Sequence[float],
         manipulator: SerialLinkManipulator,
         q_sets: NumpyArray,
-        motion_paths: Sequence[MultiPointMotionProfile],
+        motion_profiles: Sequence[MultiPointMotionProfile],
         angle_unit: AngleUnit = "deg",
     ) -> None:
         self._t_arr = t_arr
@@ -48,17 +48,17 @@ class JointSpaceScheme:
         self.dt_segments = dt_segments
         self.manipulator = manipulator
         self._q_sets = q_sets
-        self._motion_paths = motion_paths
+        self._motion_profiles = motion_profiles
 
         self.n_joints = len(self.manipulator)
         self.n_segments = len(self.dt_segments)
         
-        self._tables = _JointMotionTables(self, angle_unit)
+        self._tables = _JointSpaceTables(self, angle_unit)
 
     @classmethod
     def create(
         cls,
-        target_frames: Sequence[Frame],
+        targets: Sequence[IKTarget],
         dt_segments: Sequence[float],
         manipulator: SerialLinkManipulator,
         *,
@@ -73,9 +73,10 @@ class JointSpaceScheme:
 
         Parameters
         ----------
-        target_frames: Sequence[Frame]
-            List of end-effector frames (positions and orientations) in
-            Cartesian space.
+        targets: Sequence[IKTarget]
+            Sequence of Cartesian end-effector target frames combined with an
+            IK mask indicating the degrees of freedom the IK-solver has to
+            determine a corresponding set of joint coordinates.
         dt_segments: Sequence[float]
             List with the required travel times of each segment between two
             successive frames.
@@ -101,20 +102,21 @@ class JointSpaceScheme:
             Angle unit to be used in the tables.
         """
         jm = JointSpaceMotion(
-            target_frames, dt_segments, manipulator,
+            targets, dt_segments, manipulator,
             mp_type, blend_accels, num_t_samples,
             ini_guess
         )
         t_arr, q_arr, qd_arr, qdd_arr = jm.motion_samples
         q_sets = jm.target_coordinates
-        motion_paths = jm.motion_profiles
+        motion_profiles = jm.motion_profiles
+        target_frames = [target.frame for target in targets]
         return cls(
             t_arr, q_arr, qd_arr, qdd_arr,
             target_frames=target_frames,
             dt_segments=dt_segments,
             manipulator=manipulator,
             q_sets=q_sets,
-            motion_paths=motion_paths,
+            motion_profiles=motion_profiles,
             angle_unit=angle_unit,
         )
 
@@ -165,7 +167,7 @@ class JointSpaceScheme:
             profile selected. The order corresponds with the order of the
             joints in the manipulator, from base to tool-end.
         """
-        return self._motion_paths
+        return self._motion_profiles
 
     @property
     def has_motion_profiles(self) -> bool:
@@ -176,7 +178,7 @@ class JointSpaceScheme:
         profiles. Schemes converted from Cartesian space only have sampled
         joint positions, velocities, and accelerations.
         """
-        return len(self._motion_paths) > 0
+        return len(self._motion_profiles) > 0
 
     @property
     def scheme(self) -> NumpyArray:
@@ -196,7 +198,7 @@ class JointSpaceScheme:
         return np.column_stack((self._t_arr, self._q_arr, self._qd_arr, self._qdd_arr))
 
     @property
-    def tables(self) -> _JointMotionTables:
+    def tables(self) -> _JointSpaceTables:
         return self._tables
 
     @property
@@ -205,7 +207,7 @@ class JointSpaceScheme:
         return self._t_arr
 
     @property
-    def time_paths(self) -> NumpyArray:
+    def positions(self) -> NumpyArray:
         """
         Returns the array of sampled joint positions q.
 
@@ -253,9 +255,9 @@ class JointSpaceScheme:
             return np.column_stack((self._t_arr, tau_arr))
         raise ConfigurationError("The manipulator's dynamics is not defined.")
 
-    def plot_time_paths(self) -> LineChart:
+    def plot_positions(self) -> LineChart:
         """
-        Plots the position paths q(t) of the joints and returns the LineChart
+        Plots the positions q(t) of the joints and returns the LineChart
         object. Call show() on this object to see the plot.
 
         Returns
@@ -302,7 +304,7 @@ class JointSpaceScheme:
 
     def plot_velocities(self) -> LineChart:
         """
-        Plots the velocity paths qd(t) of the joints and returns the LineChart
+        Plots the velocities qd(t) of the joints and returns the LineChart
         object. Call show() on this object to see the plot.
 
         Returns
@@ -312,7 +314,7 @@ class JointSpaceScheme:
         if self.has_motion_profiles:
             target_times = np.concatenate(([0.0], np.cumsum(self.dt_segments)))
             target_qd_arr = np.array([
-                [mp.velocity(t) for mp in self._motion_paths]
+                [mp.velocity(t) for mp in self._motion_profiles]
                 for t in target_times
             ])
 
@@ -349,7 +351,7 @@ class JointSpaceScheme:
 
     def plot_accelerations(self) -> LineChart:
         """
-        Plots the acceleration paths qdd(t) of the joints and returns the
+        Plots the accelerations qdd(t) of the joints and returns the
         LineChart object. Call show() on this object to see the plot.
 
         Returns
@@ -359,7 +361,7 @@ class JointSpaceScheme:
         if self.has_motion_profiles:
             target_times = np.concatenate(([0.0], np.cumsum(self.dt_segments)))
             target_qdd_arr = np.array([
-                [mp.acceleration(t) for mp in self._motion_paths]
+                [mp.acceleration(t) for mp in self._motion_profiles]
                 for t in target_times
             ])
 
@@ -452,7 +454,7 @@ class CartesianSpaceScheme:
         self._target_A_arr = target_A_arr
 
         self._traj_viewer = _CartesianTrajectoryPlotter(self)
-        self._tables = _CartesianMotionTables(self)
+        self._tables = _CartesianSpaceTables(self)
 
     @classmethod
     def create(
@@ -546,7 +548,7 @@ class CartesianSpaceScheme:
         Converts a joint-space scheme to Cartesian space through application
         of the forward kinematics of the manipulator.
         """
-        frames = [jss.manipulator.fwd_kin(row) for row in jss.time_paths]
+        frames = [jss.manipulator.fwd_kin(row) for row in jss.positions]
         return cls(
             t_arr=jss.time_samples,
             traj_frames=frames,
@@ -573,14 +575,14 @@ class CartesianSpaceScheme:
             for fr in self._traj_frames]
         )
         xyz_angles = np.array([
-            np.asarray(fr.orient_angles, dtype=float)
+            np.asarray(fr.rpy_angles, dtype=float)
             for fr in self._traj_frames]
         )
         scheme = np.column_stack([self._t_arr, xyz_coords, xyz_angles])
         return scheme
 
     @property
-    def tables(self) -> _CartesianMotionTables:
+    def tables(self) -> _CartesianSpaceTables:
         return self._tables
 
     @property
@@ -634,7 +636,7 @@ class CartesianSpaceScheme:
         return self._t_arr
 
     @property
-    def time_paths(self) -> NumpyArray:
+    def poses(self) -> NumpyArray:
         """
         Returns the array of sampled pose vectors.
         """
@@ -664,14 +666,14 @@ class CartesianSpaceScheme:
     def _pose_vectors_from_frames(frames: Sequence[Frame]) -> NumpyArray:
         return CartesianMultiStraightLineMotion._frames_to_pose_vectors(frames)
 
-    def plot_time_paths(self):
+    def plot_poses(self):
         """
         Plots the Cartesian pose paths p(t) of the end-effector frame and
         returns the LineChart object. Call show() on this object to see the
         plot.
         """
         labels = ("x", "y", "z", "rx", "ry", "rz")
-        p_arr = self.time_paths
+        p_arr = self.poses
 
         target_times = np.concatenate(([0.0], np.cumsum(self.dt_segments)))
         target_p_arr = self._pose_vectors_from_frames(self._target_frames)
@@ -1077,7 +1079,7 @@ class _CartesianToJointSpaceConverter:
             dt_segments=self._css.dt_segments,
             manipulator=self._manipulator,
             q_sets=self._target_joint_coords(),
-            motion_paths=[],
+            motion_profiles=[],
         )
 
 
@@ -1232,7 +1234,7 @@ class _CartesianTrajectoryPlotter:
                 frame.name = f"T{i}"
                 scene.add_frame(
                     frame=frame,
-                    scale=target_frame_scale,
+                    frame_scale=target_frame_scale,
                     line_width=2.0,
                     show_label=True,
                 )
@@ -1261,7 +1263,7 @@ class _CartesianTrajectoryPlotter:
             for frame in self._cms._traj_frames[::frame_step]:
                 scene.add_frame(
                     frame=frame,
-                    scale=frame_scale,
+                    frame_scale=frame_scale,
                     show_label=False,
                 )
 
@@ -1367,16 +1369,16 @@ class _CartesianTrajectoryPlotter:
         await scene.show_async(jupyter_backend)
 
 
-class _JointMotionTables:
+class _JointSpaceTables:
     """
-    Helper class of JointMotionScheme.
+    Helper class of JointSpaceScheme.
     """
     def __init__(
         self,
-        jms: JointSpaceScheme,
+        jss: JointSpaceScheme,
         angle_unit: str = "deg"
     ) -> None:
-        self._jms = jms
+        self._jss = jss
         self._angle_unit = angle_unit
 
     @property
@@ -1389,9 +1391,9 @@ class _JointMotionTables:
 
     @property
     def target_coordinates(self) -> str:
-        _coordinates = self._jms.target_coordinates.copy()
+        _coordinates = self._jss.target_coordinates.copy()
         n_cols = _coordinates.shape[1]
-        links = self._jms.manipulator.links
+        links = self._jss.manipulator.links
 
         headers = []
         for i in range(n_cols):
@@ -1410,24 +1412,24 @@ class _JointMotionTables:
 
     @property
     def scheme(self) -> str:
-        _scheme = self._jms.scheme.copy()
-        links = self._jms.manipulator.links
+        _scheme = self._jss.scheme.copy()
+        links = self._jss.manipulator.links
 
         headers = ["time"]
 
-        for i in range(1, self._jms.n_joints + 1):
+        for i in range(1, self._jss.n_joints + 1):
             if links[i-1].is_revolute and self._angle_unit == "deg":
                 col = np.rad2deg(_scheme[:, i])
                 _scheme[:, i] = col
             headers.append(f"q{i}")
 
         x = 1
-        for i in range(self._jms.n_joints + 1, 2 * self._jms.n_joints + 1):
+        for i in range(self._jss.n_joints + 1, 2 * self._jss.n_joints + 1):
             headers.append(f"qd{x}")
             x += 1
 
         x = 1
-        for i in range(2 * self._jms.n_joints + 1, 3 * self._jms.n_joints + 1):
+        for i in range(2 * self._jss.n_joints + 1, 3 * self._jss.n_joints + 1):
             headers.append(f"qdd{x}")
             x += 1
 
@@ -1439,26 +1441,26 @@ class _JointMotionTables:
 
     @property
     def dynamics(self) -> str:
-        if self._jms.manipulator.has_dynamics():
-            tau_arr = self._jms.dynamics()
+        if self._jss.manipulator.has_dynamics():
+            tau_arr = self._jss.dynamics()
             headers = ["time"]
-            headers.extend([f"tau{i+1}" for i in range(self._jms.n_joints)])
+            headers.extend([f"tau{i+1}" for i in range(self._jss.n_joints)])
             table = array_to_table(tau_arr, headers=headers)
             return table
         raise ConfigurationError("The manipulator's dynamics is not defined.")
 
 
-class _CartesianMotionTables:
+class _CartesianSpaceTables:
 
     def __init__(
         self,
-        cms: CartesianSpaceScheme,
+        css: CartesianSpaceScheme,
     ) -> None:
-        self._cms = cms
+        self._css = css
 
     @property
     def scheme(self) -> str:
-        _scheme = self._cms.scheme.copy()
+        _scheme = self._css.scheme.copy()
         headers = ["time", "x", "y", "z", "alpha", "beta", "gamma"]
         table = array_to_table(_scheme, headers=headers)
         return table

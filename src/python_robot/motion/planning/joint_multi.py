@@ -1,6 +1,7 @@
 from typing import Sequence
 
 from enum import StrEnum
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -12,8 +13,11 @@ from ..profiles_1D.multi_point import MultiPointCubicPath, MultiLinearPath
 __all__ = [
     "MultiPointMotionProfile",
     "MultiPointMotionProfileType",
-    "JointSpaceMotion"
+    "JointSpaceMotion",
+    "IKMask",
+    "IKTarget",
 ]
+
 
 MultiPointMotionProfile = MultiPointCubicPath | MultiLinearPath
 
@@ -23,11 +27,39 @@ class MultiPointMotionProfileType(StrEnum):
     LINEAR = "linear"
 
 
+@dataclass(frozen=True)
+class IKMask:
+    x: bool = True
+    y: bool = True
+    z: bool = True
+    alpha: bool = True
+    beta: bool = True
+    gamma: bool = True
+
+    @property
+    def array(self) -> NumpyArray:
+        return np.array(
+            [self.x, self.y, self.z,
+             self.alpha, self.beta, self.gamma],
+            dtype=bool
+        )
+
+
+@dataclass
+class IKTarget:
+    frame: Frame
+    ik_mask: IKMask | None = None
+
+    def __post_init__(self):
+        if self.ik_mask is None:
+            self.ik_mask = IKMask()
+
+
 class JointSpaceMotion:
 
     def __init__(
         self,
-        target_frames: Sequence[Frame],
+        targets: Sequence[IKTarget],
         dt_segments: Sequence[float],
         manipulator: SerialLinkManipulator,
         mp_type: MultiPointMotionProfileType = MultiPointMotionProfileType.CUBIC,
@@ -40,18 +72,19 @@ class JointSpaceMotion:
 
         The class performs three steps:
         -   In the first step the target frames in Cartesian space are mapped
-            to corresponding joint configurations in joint space.
-        -   In the second step the target joint configurations and the travel times
-            between them are used to construct a motion profile for each of the
-            joints.
+            to corresponding target joint coordinates in joint space.
+        -   In the second step the target joint coordinates and the travel
+            times between them are used to define a motion profile for each
+            of the joints.
         -   In the third step time samples are taken from the motion profile of
             each joint.
 
         Parameters
         ----------
-        target_frames: Sequence[Frame]
-            List of end-effector frames (positions and orientations) in
-            Cartesian space.
+        targets: Sequence[IKTarget]
+            Sequence of Cartesian end-effector target frames combined with an
+            IK mask indicating the degrees of freedom the IK-solver has to
+            determine a corresponding set of joint coordinates.
         dt_segments: Sequence[float]
             List with the desired/required travel times between two successive
             target frames.
@@ -76,12 +109,12 @@ class JointSpaceMotion:
             inverse-kinematics solution as its initial guess.
         """
         self.manipulator = manipulator
-        self.target_frames = target_frames
+        self.targets = targets
         self.mp_type = mp_type
         self.blend_accels = blend_accels
         self.ini_guess = ini_guess
 
-        self.n_segments = len(self.target_frames) - 1
+        self.n_segments = len(self.targets) - 1
         self.n_joints = len(self.manipulator)
 
         if self.n_segments != len(dt_segments):
@@ -92,22 +125,21 @@ class JointSpaceMotion:
             )
         self.dt_segments = dt_segments
 
-        self._q_sets = self._map_to_joints(self.target_frames, self.ini_guess)
+        self._q_sets = self._map_to_joints(self.targets, self.ini_guess)
         self._motion_profiles = self._motion_profiling(self._q_sets)
         res = self._time_sampling(self._motion_profiles, num_t_samples)
         self._t_arr, self._q_arr, self._qd_arr, self._qdd_arr = res
 
     def _map_to_joints(
         self,
-        frames: Sequence[Frame],
+        targets: Sequence[IKTarget],
         ini_guess: Sequence[float] | None = None,
     ) -> NumpyArray:
         """
-        Maps the end-effector frames from "Cartesian space" to "joint space",
-        i.e., the poses of the end-effector frames (w.r.t. the fixed base frame
-        of the manipulator) are translated to sets of corresponding joint
-        coordinates through application of the inverse kinematics of the
-        manipulator.
+        Maps the end-effector target frames from "Cartesian space" to
+        "joint space", i.e., the pose of each target frame (w.r.t. the fixed
+        base frame of the manipulator) is translated to a corresponding set of
+        joint coordinates using the inverse kinematics of the manipulator.
 
         Returns
         -------
@@ -119,8 +151,8 @@ class JointSpaceMotion:
         q_sets = []
         q_guess = ini_guess if ini_guess is not None else self.manipulator.joint_coords
 
-        for frame in frames:
-            q = self.manipulator.inv_kin(frame, ini_guess=q_guess)  # TODO: Ensure that q_guess and q have radians
+        for target in targets:
+            q = self.manipulator.inv_kin(target.frame, ini_guess=q_guess, mask=target.ik_mask.array)
             q_sets.append(q)
             q_guess = q
 
@@ -128,15 +160,16 @@ class JointSpaceMotion:
 
     def _motion_profiling(self, q_sets: NumpyArray) -> list[MultiPointMotionProfile]:
         """
-        From the joint coordinate sets determined by inverse kinematics,
-        calculates the motion paths for each joint in the manipulator.
+        From the sets of target joint coordinates that were determined by
+        the inverse kinematics, calculates a motion profile for each joint of
+        the manipulator.
 
         Returns
         -------
         list[MultiPointMotionProfile]
             Either a list of MultiPointCubicPath objects or a list of
             MultiLinearSegmentPath objects, depending on the type of motion
-            profile selected.
+            profile that was selected.
         """
         if self.mp_type == MultiPointMotionProfileType.CUBIC:
             motion_profiles = [
@@ -177,8 +210,7 @@ class JointSpaceMotion:
         n_samples: int
     ) -> tuple[NumpyArray, ...]:
         """
-        Takes evenly distributed time samples of the motion profiles of the
-        joints.
+        Returns uniformly distributed time samples of the joint-motion profiles.
 
         Returns
         -------

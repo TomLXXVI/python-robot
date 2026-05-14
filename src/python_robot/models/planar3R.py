@@ -162,7 +162,7 @@ class Planar3R(SerialLinkManipulator):
         """
         link_frame = self._tcp_frame_to_link_frame(ee_frame)
         x, y = link_frame.origin[0], link_frame.origin[1]
-        phi = link_frame.orient_angles[2]
+        phi = link_frame.rpy_angles[2]
 
         c2 = (x**2 + y**2 - self.l1**2 - self.l2**2) / (2 * self.l1 * self.l2)
         if c2 > 1 or c2 < -1:
