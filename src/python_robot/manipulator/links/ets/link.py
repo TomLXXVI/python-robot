@@ -30,12 +30,11 @@ class AbstractETSLink(AbstractLink, ABC):
     ) -> None:
         self._axis = axis
         self._ET_params = ET_params
-        self._joint_limits = joint_limits
 
         link_length = self._calculate_link_length()
 
         ets = self._create_link_ETS()
-        kwargs = {} if self._joint_limits is None else {"qlim": joint_limits}
+        kwargs = {} if joint_limits is None else {"qlim": joint_limits}
         rtb_link = RTBLink(ets, **kwargs)
 
         super().__init__(link_length, rtb_link, dynamics)

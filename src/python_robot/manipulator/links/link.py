@@ -97,6 +97,10 @@ class AbstractLink(ABC):
     def q_lim(self) -> NumpyArray | None:
         return self._rtb_link.qlim
 
+    @q_lim.setter
+    def q_lim(self, v: tuple[float, float]) -> None:
+        self._rtb_link.qlim = v
+
     @property
     @abstractmethod
     def is_revolute(self) -> bool:

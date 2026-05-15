@@ -36,8 +36,7 @@ class IKMask:
     beta: bool = True
     gamma: bool = True
 
-    @property
-    def array(self) -> NumpyArray:
+    def to_array(self) -> NumpyArray:
         return np.array(
             [self.x, self.y, self.z,
              self.alpha, self.beta, self.gamma],
@@ -148,14 +147,52 @@ class JointSpaceMotion:
             frames. The number of columns equals the number of joints of the
             manipulator.
         """
+        def choose_closest_revolute_equivalent(q, previous_q, joints, q_lims=None):
+            q = np.asarray(q, dtype=float)
+            previous_q = np.asarray(previous_q, dtype=float)
+
+            q_equiv = q.copy()
+
+            for i, joint in enumerate(joints):
+                if not joint.is_revolute:
+                    continue
+
+                qi = q[i]
+                qi_prev = previous_q[i]
+
+                k0 = int(np.round((qi_prev - qi) / (2.0 * np.pi)))
+                candidates = qi + 2.0 * np.pi * np.arange(k0 - 2, k0 + 3)
+
+                if q_lims is not None and q_lims[i] is not None:
+                    lo, hi = q_lims[i]
+                    candidates = candidates[(candidates >= lo) & (candidates <= hi)]
+
+                if len(candidates) > 0:
+                    q_equiv[i] = candidates[np.argmin(np.abs(candidates - qi_prev))]
+
+            return q_equiv
+
+        joints = self.manipulator.links
+        q_lims = [link.q_lim for link in self.manipulator.links]
         q_sets = []
         q_guess = ini_guess if ini_guess is not None else self.manipulator.joint_coords
 
         for target in targets:
-            q = self.manipulator.inv_kin(target.frame, ini_guess=q_guess, mask=target.ik_mask.array)
+            q = self.manipulator.inv_kin(
+                target.frame,
+                ini_guess=q_guess,
+                mask=target.ik_mask.to_array()  # type: ignore
+            )
+            # For revolute joints, a branch continuity step is performed after
+            # every IK solution: optionally add ±2π to revolute joints so that
+            # they lie as close as possible to the previous joint configuration,
+            # as long as they remain within q_lim.
+            if len(q_sets) >= 1:
+                previous_q = q_sets[-1]
+                q = choose_closest_revolute_equivalent(q, previous_q, joints, q_lims)
             q_sets.append(q)
             q_guess = q
-
+        
         return np.array(q_sets)
 
     def _motion_profiling(self, q_sets: NumpyArray) -> list[MultiPointMotionProfile]:

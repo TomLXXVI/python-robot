@@ -10,7 +10,7 @@ class RevoluteSDHLink(AbstractRevoluteDHLink):
     Defines a revolute link according to the standard Denavit-Hartenberg
     notation.
     """
-    _rtb_constructor = RevoluteDH
+    _rtb_link_constructor = RevoluteDH
 
 
 class PrismaticSDHLink(AbstractPrismaticDHLink):
@@ -18,4 +18,4 @@ class PrismaticSDHLink(AbstractPrismaticDHLink):
     Defines a prismatic link according to the standard Denavit-Hartenberg
     notation.
     """
-    _rtb_constructor = PrismaticDH
+    _rtb_link_constructor = PrismaticDH

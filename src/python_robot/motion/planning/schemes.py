@@ -1092,12 +1092,16 @@ class _CartesianTrajectoryPlotter:
 
     @staticmethod
     def _create_scene(**kwargs) -> WorldScene:
+        world_frame_scale = kwargs.pop("world_frame_scale", 1.0)
+
         scene_params = get_valid_keyword_parameters(WorldScene.__init__, exclude={"self"})
         scene_kwargs = {k: v for k, v in kwargs.items() if k in scene_params}
+
         scene = WorldScene(**scene_kwargs)
         scene.camera.enable_view_shortcuts()
         scene.add_plane_grid()
-        scene.add_world_frame()
+        scene.add_world_frame(frame_scale=world_frame_scale)
+
         return scene
 
     @staticmethod
@@ -1201,8 +1205,6 @@ class _CartesianTrajectoryPlotter:
 
         if frame_step < 1:
             raise ValueError("frame_step must be at least 1.")
-
-
 
         scene = self._create_scene(**kwargs)
 

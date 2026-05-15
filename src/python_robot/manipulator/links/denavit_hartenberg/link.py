@@ -18,16 +18,14 @@ class AbstractDHLink(AbstractLink, ABC):
     def __init__(
         self,
         link_length: float,
-        twist_angle: float,
         rtb_link: RevoluteDH | RevoluteMDH | PrismaticDH | PrismaticMDH,
         dynamics: LinkDynamicParams | None = None,
     ) -> None:
-        self._twist_angle = twist_angle
         super().__init__(link_length, rtb_link, dynamics)
 
 
 class AbstractRevoluteDHLink(AbstractDHLink, AbstractRevoluteLink):
-    _rtb_constructor: Type[RevoluteDH | RevoluteMDH]
+    _rtb_link_constructor: Type[RevoluteDH | RevoluteMDH]
 
     def __init__(
         self,
@@ -62,23 +60,18 @@ class AbstractRevoluteDHLink(AbstractDHLink, AbstractRevoluteLink):
         dynamics: LinkDynamicParams, optional
             Data-object containing dynamical parameters of the revolute link.
         """
-        self._link_offset = link_offset
-        self._zero_joint_angle = zero_joint_angle
-        self._limits_joint_angle = limits_joint_angle
-
-        rtb_link: RevoluteDH | RevoluteMDH = self._rtb_constructor(
-            d=self._link_offset,
+        rtb_link: RevoluteDH | RevoluteMDH = self._rtb_link_constructor(
+            d=link_offset,
             a=link_length,
             alpha=twist_angle,
-            offset=self._zero_joint_angle,
-            qlim=self._limits_joint_angle
+            offset=zero_joint_angle,
+            qlim=limits_joint_angle
         )
-
-        super().__init__(link_length, twist_angle, rtb_link, dynamics)
+        super().__init__(link_length, rtb_link, dynamics)
 
 
 class AbstractPrismaticDHLink(AbstractDHLink, AbstractPrismaticLink):
-    _rtb_constructor: Type[PrismaticDH | PrismaticMDH]
+    _rtb_link_constructor: Type[PrismaticDH | PrismaticMDH]
 
     def __init__(
         self,
@@ -113,16 +106,11 @@ class AbstractPrismaticDHLink(AbstractDHLink, AbstractPrismaticLink):
         dynamics: LinkDynamicParams, optional
             Data-object containing dynamical parameters of the prismatic link.
         """
-        self._joint_angle = joint_angle
-        self._zero_link_offset = zero_link_offset
-        self._limits_link_offset = limits_link_offset
-
-        rtb_link: PrismaticDH | PrismaticMDH = self._rtb_constructor(
-            theta=self._joint_angle,
+        rtb_link: PrismaticDH | PrismaticMDH = self._rtb_link_constructor(
+            theta=joint_angle,
             a=link_length,
             alpha=twist_angle,
-            offset=self._zero_link_offset,
-            qlim=self._limits_link_offset
+            offset=zero_link_offset,
+            qlim=limits_link_offset
         )
-
-        super().__init__(link_length, twist_angle, rtb_link, dynamics)
+        super().__init__(link_length, rtb_link, dynamics)
