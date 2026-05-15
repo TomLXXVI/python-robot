@@ -75,7 +75,7 @@ targets = [
         Frame(origin=(0.2, 0.2, 0.6), rpy_angles=(0.0, 0.0, 0.0))
         # No IKMask specified: the default IKMask will be used. The default
         # IKMask requires that both position and orientation of the target frame
-        # are fulfilled.
+        # are reached.
     )
 ]
 
