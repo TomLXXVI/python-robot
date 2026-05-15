@@ -10,12 +10,12 @@ import pyvista as pv
 from spatialmath import SE3, SO3
 from spatialmath.base.types import ArrayLike3
 
-from ..base.frame import Frame
+from python_robot.base.frame import Frame
 from .scene import WorldScene
 from .artists import FrameArtist, LinkArtist
 
 if TYPE_CHECKING:
-    from ..manipulator.kinematic_chain import KinematicChain
+    from manipulator.kinematic_chain import KinematicChain
 
 
 ToolVisual = Literal["auto", "none", "point", "frame", "both"]

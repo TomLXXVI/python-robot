@@ -7,7 +7,6 @@ from python_robot.base.types import NumpyArray
 from python_robot.base import Frame
 
 from .kinematic_chain import AbstractLink, KinematicChain
-from .visualisation import KinematicChainViewer
 
 __all__ = ["SerialLinkManipulator"]
 
@@ -51,12 +50,11 @@ class SerialLinkManipulator(KinematicChain):
             Global animation options used with every call to animate() or
             animate_async().
         """
-        super().__init__(links, joint_coords, base_frame, tool_frame)
-        self._viewer = KinematicChainViewer(self)
-        if plot_options is not None:
-            self.set_plot_options(**plot_options)
-        if anim_options is not None:
-            self.set_animation_options(**anim_options)
+        super().__init__(
+            links, joint_coords, base_frame, tool_frame,
+            plot_options=plot_options,
+            anim_options=anim_options
+        )
 
     @property
     def erobot(self) -> ERobot:
@@ -121,78 +119,3 @@ class SerialLinkManipulator(KinematicChain):
             tau = robot.rne(q, qd, qdd, gravity=np.asarray(gravity, dtype=float))
 
         return np.asarray(tau, dtype=float)
-
-    def set_plot_options(self, **kwargs) -> None:
-        self._viewer.set_plot_options(**kwargs)
-
-    def plot(self, **kwargs) -> None:
-        """
-        Plots the current joint configuration of the kinematic chain in
-        3D-space.
-
-        Parameters
-        ----------
-        **kwargs:
-            Additional keyword arguments for 3D scene configuration (for details
-            see docstring of class WorldScene in visualisation.scene.py).
-
-        Returns
-        -------
-        None
-        """
-        self._viewer.plot(**kwargs)
-
-    async def plot_async(self, **kwargs) -> None:
-        """
-        Plots the current joint-and-links configuration of the kinematic chain in
-        3D-space.
-
-        This is an asynchronous version of the plot method that can be used in
-        Jupyter notebooks. (When calling this function, you need keyword await
-        in front of the method call.)
-
-        Parameters
-        ----------
-        kwargs: dict
-            Additional keyword arguments for scene configuration (for details
-            see docstring of class WorldScene  in visualisation.scene.py).
-
-        Returns
-        -------
-        None
-        """
-        await self._viewer.plot_async(**kwargs)
-
-    def set_animation_options(self, **kwargs) -> None:
-        self._viewer.set_animation_options(**kwargs)
-
-    def animate(
-        self,
-        joint_coords: Sequence[Sequence[float]],
-        **kwargs
-    ) -> None:
-        """
-        Animate a sequence of manipulator joint configurations.
-
-        For info about the parameters of this function, see the docstring of
-        `manipulator.visualisation.KinematicChainViewer`.
-        """
-        self._viewer.animate(
-            joint_coords=joint_coords,
-            **kwargs
-        )
-
-    async def animate_async(
-        self,
-        joint_coords: Sequence[Sequence[float]],
-        **kwargs
-    ) -> None:
-        """
-        Animate a sequence of manipulator joint configurations asynchronously.
-
-        Use this method in Jupyter notebooks and other async contexts.
-        """
-        await self._viewer.animate_async(
-            joint_coords=joint_coords,
-            **kwargs
-        )

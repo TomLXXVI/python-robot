@@ -190,6 +190,7 @@ class Planar3R(SerialLinkManipulator):
         which_solver: IKSolverSpec = "LM",
         **kwargs
     ) -> NumpyArray:
+        kwargs.pop("mask", None)  # mask cannot be assigned twice - ignore any mask in kwargs
         return super().inv_kin(
             ee_frame=ee_frame,
             ini_guess=ini_guess,

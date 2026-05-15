@@ -1,4 +1,5 @@
-from typing import Literal, Sequence, Any
+from __future__ import annotations
+from typing import Literal, Sequence, Any, TYPE_CHECKING
 
 import numpy as np
 
@@ -7,7 +8,9 @@ from python_robot.base import Frame
 from python_robot.visualisation import WorldScene, KinematicChainAnimator
 from python_robot.utils.introspection import get_valid_keyword_parameters
 
-from .kinematic_chain import KinematicChain
+if TYPE_CHECKING:
+    from python_robot.manipulator.kinematic_chain import KinematicChain
+
 
 __all__ = ["KinematicChainViewer"]
 
@@ -25,7 +28,6 @@ class KinematicChainViewer:
     manipulator base frame, so a displaced base frame is reflected in the
     rendered robot geometry.
     """
-
     def __init__(self, kinematic_chain: KinematicChain) -> None:
         self.kinematic_chain = kinematic_chain
 

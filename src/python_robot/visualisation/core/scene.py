@@ -5,7 +5,7 @@ import numpy as np
 import pyvista as pv
 from spatialmath.base.types import ArrayLike3
 
-from ..base.frame import Frame, WREF_FRAME
+from python_robot.base.frame import Frame, WREF_FRAME
 from .artists import FrameArtist, LinkArtist, PointArtist
 
 

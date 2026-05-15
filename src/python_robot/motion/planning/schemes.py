@@ -58,7 +58,7 @@ class JointSpaceScheme:
     @classmethod
     def create(
         cls,
-        targets: Sequence[IKTarget],
+        targets: Sequence[IKTarget] | Sequence[Frame],
         dt_segments: Sequence[float],
         manipulator: SerialLinkManipulator,
         *,
@@ -73,10 +73,10 @@ class JointSpaceScheme:
 
         Parameters
         ----------
-        targets: Sequence[IKTarget]
-            Sequence of Cartesian end-effector target frames combined with an
-            IK mask indicating the degrees of freedom the IK-solver has to
-            determine a corresponding set of joint coordinates.
+        targets: Sequence[IKTarget] | Sequence[Frame]
+            Sequence of Cartesian end-effector target frames optionally combined
+            with an IK-mask indicating the degrees of freedom the IK-solver has
+            available to determine a corresponding set of joint coordinates.
         dt_segments: Sequence[float]
             List with the required travel times of each segment between two
             successive frames.
@@ -109,10 +109,15 @@ class JointSpaceScheme:
         t_arr, q_arr, qd_arr, qdd_arr = jm.motion_samples
         q_sets = jm.target_coordinates
         motion_profiles = jm.motion_profiles
-        target_frames = [target.frame for target in targets]
+
+        if isinstance(targets[0], IKTarget):
+            target_frames = [target.frame for target in targets]
+        else:
+            target_frames = targets
+
         return cls(
             t_arr, q_arr, qd_arr, qdd_arr,
-            target_frames=target_frames,
+            target_frames=target_frames,  # type: ignore
             dt_segments=dt_segments,
             manipulator=manipulator,
             q_sets=q_sets,

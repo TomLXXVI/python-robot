@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Sequence, overload, Literal
+from typing import Sequence, overload, Literal, Any
 from collections.abc import Iterable, Iterator, MutableSequence
 
 from abc import ABC
@@ -11,9 +11,11 @@ from roboticstoolbox import ETS, ERobot
 
 from python_robot.base.types import NumpyArray, ArrayLike6
 from python_robot.base import Frame, WREF_FRAME, SpatialVelocity, Wrench
+from python_robot.visualisation.kinematic_chain import KinematicChainViewer
 
-from .links import AbstractLink
 from .exceptions import *
+from .links import AbstractLink
+
 
 __all__ = [
     "IKSolverSpec",
@@ -142,6 +144,9 @@ class KinematicChain(AbstractKinematicChain):
         joint_coords: Sequence[float] | None = None,
         base_frame: Frame | None = None,
         tool_frame: Frame | None = None,
+        *,
+        plot_options: dict[str, Any] | None = None,
+        anim_options: dict[str, Any] | None = None,
     ) -> None:
         """
         Creates a KinematicChain object.
@@ -161,6 +166,11 @@ class KinematicChain(AbstractKinematicChain):
             Tool-center point (TCP) frame or end-effector frame relative to the
             frame of the last link in the kinematic chain. If None, the tool
             frame coincides with the last link frame.
+        plot_options: dict[str, Any], optional
+            Global plot options used with every call to plot() or plot_async().
+        anim_options: dict[str, Any], optional
+            Global animation options used with every call to animate() or
+            animate_async().
         """
         super().__init__(links)
         self._base_frame: Frame = WREF_FRAME if base_frame is None else base_frame
@@ -174,6 +184,12 @@ class KinematicChain(AbstractKinematicChain):
 
         self._ets: ETS = self._create_ETS()
         self._erobot: ERobot = self._create_ERobot()
+
+        self._viewer = KinematicChainViewer(self)
+        if plot_options is not None:
+            self.set_plot_options(**plot_options)
+        if anim_options is not None:
+            self.set_animation_options(**anim_options)
 
     @property
     def links(self) -> list[AbstractLink]:
@@ -737,3 +753,78 @@ class KinematicChain(AbstractKinematicChain):
             "R" if link.is_revolute 
             else "P" for link in self._links
         ])})"
+
+    def set_plot_options(self, **kwargs) -> None:
+        self._viewer.set_plot_options(**kwargs)
+
+    def plot(self, **kwargs) -> None:
+        """
+        Plots the current joint configuration of the kinematic chain in
+        3D-space.
+
+        Parameters
+        ----------
+        **kwargs:
+            Additional keyword arguments for 3D scene configuration (for details
+            see docstring of class WorldScene in visualisation.scene.py).
+
+        Returns
+        -------
+        None
+        """
+        self._viewer.plot(**kwargs)
+
+    async def plot_async(self, **kwargs) -> None:
+        """
+        Plots the current joint-and-links configuration of the kinematic chain in
+        3D-space.
+
+        This is an asynchronous version of the plot method that can be used in
+        Jupyter notebooks. (When calling this function, you need keyword await
+        in front of the method call.)
+
+        Parameters
+        ----------
+        kwargs: dict
+            Additional keyword arguments for scene configuration (for details
+            see docstring of class WorldScene  in visualisation.scene.py).
+
+        Returns
+        -------
+        None
+        """
+        await self._viewer.plot_async(**kwargs)
+
+    def set_animation_options(self, **kwargs) -> None:
+        self._viewer.set_animation_options(**kwargs)
+
+    def animate(
+        self,
+        joint_coords: Sequence[Sequence[float]],
+        **kwargs
+    ) -> None:
+        """
+        Animate a sequence of manipulator joint configurations.
+
+        For info about the parameters of this function, see the docstring of
+        `manipulator.visualisation.KinematicChainViewer`.
+        """
+        self._viewer.animate(
+            joint_coords=joint_coords,
+            **kwargs
+        )
+
+    async def animate_async(
+        self,
+        joint_coords: Sequence[Sequence[float]],
+        **kwargs
+    ) -> None:
+        """
+        Animate a sequence of manipulator joint configurations asynchronously.
+
+        Use this method in Jupyter notebooks and other async contexts.
+        """
+        await self._viewer.animate_async(
+            joint_coords=joint_coords,
+            **kwargs
+        )

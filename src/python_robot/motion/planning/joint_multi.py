@@ -58,7 +58,7 @@ class JointSpaceMotion:
 
     def __init__(
         self,
-        targets: Sequence[IKTarget],
+        targets: Sequence[IKTarget] | Sequence[Frame],
         dt_segments: Sequence[float],
         manipulator: SerialLinkManipulator,
         mp_type: MultiPointMotionProfileType = MultiPointMotionProfileType.CUBIC,
@@ -80,10 +80,10 @@ class JointSpaceMotion:
 
         Parameters
         ----------
-        targets: Sequence[IKTarget]
-            Sequence of Cartesian end-effector target frames combined with an
-            IK mask indicating the degrees of freedom the IK-solver has to
-            determine a corresponding set of joint coordinates.
+        targets: Sequence[IKTarget] | Sequence[Frame]
+            Sequence of Cartesian end-effector target frames optionally combined
+            with an IK-mask indicating the degrees of freedom the IK-solver has
+            available to determine a corresponding set of joint coordinates.
         dt_segments: Sequence[float]
             List with the desired/required travel times between two successive
             target frames.
@@ -131,7 +131,7 @@ class JointSpaceMotion:
 
     def _map_to_joints(
         self,
-        targets: Sequence[IKTarget],
+        targets: Sequence[IKTarget] | Sequence[Frame],
         ini_guess: Sequence[float] | None = None,
     ) -> NumpyArray:
         """
@@ -177,6 +177,9 @@ class JointSpaceMotion:
         q_sets = []
         q_guess = ini_guess if ini_guess is not None else self.manipulator.joint_coords
 
+        if isinstance(targets[0], Frame):
+            targets = [IKTarget(frame) for frame in targets]
+
         for target in targets:
             q = self.manipulator.inv_kin(
                 target.frame,
@@ -192,7 +195,7 @@ class JointSpaceMotion:
                 q = choose_closest_revolute_equivalent(q, previous_q, joints, q_lims)
             q_sets.append(q)
             q_guess = q
-        
+
         return np.array(q_sets)
 
     def _motion_profiling(self, q_sets: NumpyArray) -> list[MultiPointMotionProfile]:
