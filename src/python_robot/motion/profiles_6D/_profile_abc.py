@@ -14,7 +14,7 @@ class MultiPointVectorMotionProfile(ABC):
         self.dt_tot: float = 0.0
 
     @abstractmethod
-    def position(self, t: float) -> NumpyArray:
+    def pose(self, t: float) -> NumpyArray:
         pass
 
     @abstractmethod
@@ -38,7 +38,7 @@ class MultiPointVectorMotionProfile(ABC):
         Returns the sampled position profile of the vector-valued path.
         """
         t_arr = np.linspace(0.0, self.dt_tot, n_samples)
-        p_arr = np.array([self.position(t) for t in t_arr])
+        p_arr = np.array([self.pose(t) for t in t_arr])
         return t_arr, p_arr
 
     def velocity_profile(self, n_samples: int = 100) -> tuple[NumpyArray, NumpyArray]:

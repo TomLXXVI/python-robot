@@ -1,13 +1,13 @@
 """
 Implements a class representing an XYZ gantry robot with three prismatic joints.
 """
-from typing import Sequence
+from typing import Sequence, Any
 
 import numpy as np
 
 from ..base import Frame
 from ..base.types import NumpyArray
-from ..manipulator import KinematicChainViewer, SerialLinkManipulator
+from ..manipulator import SerialLinkManipulator
 from ..manipulator.links import LinkDynamicParams
 from ..manipulator.links.ets import PrismaticETSLink, LinkETParams
 
@@ -31,6 +31,9 @@ class XYZGantry(SerialLinkManipulator):
         joint_coords: Sequence[float] | None = None,
         base_frame: Frame | None = None,
         tool_frame: Frame | None = None,
+        *,
+        plot_options: dict[str, Any] | None = None,
+        anim_options: dict[str, Any] | None = None,
     ) -> None:
         """
         Creates an XYZ gantry robot.
@@ -54,8 +57,9 @@ class XYZGantry(SerialLinkManipulator):
             joint_coords=joint_coords,
             base_frame=base_frame,
             tool_frame=tool_frame,
+            plot_options=plot_options,
+            anim_options=anim_options
         )
-        self._viewer = KinematicChainViewer(self)
 
     @staticmethod
     def _normalize_q_lim(

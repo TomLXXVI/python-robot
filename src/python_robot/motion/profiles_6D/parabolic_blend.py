@@ -382,7 +382,7 @@ class MultiLinearVectorPath(MultiPointVectorMotionProfile):
 
         return self.pieces[-1]
 
-    def position(self, t: float) -> NumpyArray:
+    def pose(self, t: float) -> NumpyArray:
         """
         Returns the pose vector p (x, y, z, rx, ry, rz) at time t.
         """

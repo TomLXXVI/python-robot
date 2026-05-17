@@ -8,6 +8,7 @@ from .types import *
 from .transformation import Transformation, AngleUnit
 from .vector import Vector, Axis, AngularVelocity, TranslationalVelocity, SpatialVelocity, Wrench
 
+
 __all__ = [
     "FrameReference",
     "Frame",
@@ -224,8 +225,8 @@ class Frame:
             The spatial velocity as observed in this frame.
         is_frame : bool
             Indicates whether the spatial velocity V is the space velocity of
-            this frame or the space velocity of a moving object as it is
-            observed in this frame.
+            this frame or the space velocity of a moving object as observed in
+            this frame.
 
         Returns
         -------

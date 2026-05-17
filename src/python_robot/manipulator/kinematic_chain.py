@@ -11,7 +11,6 @@ from roboticstoolbox import ETS, ERobot
 
 from python_robot.base.types import NumpyArray, ArrayLike6
 from python_robot.base import Frame, WREF_FRAME, SpatialVelocity, Wrench
-from python_robot.visualisation.kinematic_chain import KinematicChainViewer
 
 from .exceptions import *
 from .links import AbstractLink
@@ -185,11 +184,7 @@ class KinematicChain(AbstractKinematicChain):
         self._ets: ETS = self._create_ETS()
         self._erobot: ERobot = self._create_ERobot()
 
-        self._viewer = KinematicChainViewer(self)
-        if plot_options is not None:
-            self.set_plot_options(**plot_options)
-        if anim_options is not None:
-            self.set_animation_options(**anim_options)
+        self._create_viewer(plot_options, anim_options)
 
     @property
     def links(self) -> list[AbstractLink]:
@@ -533,7 +528,7 @@ class KinematicChain(AbstractKinematicChain):
 
         if sol.success:
             return np.asarray(sol.q, dtype=float)
-        raise IKSolverError("A solution was not found.")
+        raise IKSolverError(f"A solution was not found for frame {ee_frame}.")
 
     def jacobian(
         self,
@@ -687,6 +682,7 @@ class KinematicChain(AbstractKinematicChain):
     def get_end_effector_velocity(
         self,
         joint_velocities: Sequence[float],
+        joint_coords: Sequence[float] | None = None,
         ref_frame: RefFrame = "world"
     ) -> SpatialVelocity:
         """
@@ -700,6 +696,9 @@ class KinematicChain(AbstractKinematicChain):
             The velocities of the joints in the current configuration of the
             chain. Joint velocities are always expressed w.r.t. the fixed base
             frame. Rotational velocities must be expressed in rad/s.
+        joint_coords: Sequence[float], optional
+            The coordinates of the joints. If None, the current joint
+            configuration of the kinematic chain is taken.
         ref_frame: RefFrame, default = "world"
             Specifies the reference frame in which the spatial velocity of the
             end-effector should be expressed. By default, this reference frame
@@ -713,8 +712,10 @@ class KinematicChain(AbstractKinematicChain):
         """
         q_seq = self._check_number_of_joint_coords(joint_velocities)
         q_arr = np.asarray(q_seq, dtype=float)
-        J = self.jacobian(None, ref_frame=ref_frame)
+        J = self.jacobian(joint_coords, ref_frame=ref_frame)
         V_ee = J @ q_arr
+        if len(V_ee) == 3:
+            V_ee = [V_ee[0], V_ee[1], 0.0, 0.0, 0.0, V_ee[2]]
         return SpatialVelocity(V_ee)
 
     def get_static_joint_torques(
@@ -753,6 +754,21 @@ class KinematicChain(AbstractKinematicChain):
             "R" if link.is_revolute 
             else "P" for link in self._links
         ])})"
+
+    def _create_viewer(
+        self,
+        plot_options: dict[str, Any] | None,
+        anim_options: dict[str, Any] | None
+    ) -> None:
+        from python_robot.visualisation.kinematic_chain import KinematicChainViewer
+
+        self._viewer = KinematicChainViewer(self)
+
+        if plot_options is not None:
+            self.set_plot_options(**plot_options)
+
+        if anim_options is not None:
+            self.set_animation_options(**anim_options)
 
     def set_plot_options(self, **kwargs) -> None:
         self._viewer.set_plot_options(**kwargs)

@@ -260,7 +260,7 @@ class JointSpaceScheme:
             return np.column_stack((self._t_arr, tau_arr))
         raise ConfigurationError("The manipulator's dynamics is not defined.")
 
-    def plot_positions(self) -> LineChart:
+    def plot_positions(self, show_targets: bool = False) -> LineChart:
         """
         Plots the positions q(t) of the joints and returns the LineChart
         object. Call show() on this object to see the plot.
@@ -285,15 +285,16 @@ class JointSpaceScheme:
                 x1_values=self._t_arr,
                 y1_values=_to_degrees(i, self._q_arr[:, i]),
             )
-            chart.add_xy_data(
-                label=f"q{i+1}, targets",
-                x1_values=target_times,
-                y1_values=_to_degrees(i, self._q_sets[:, i]),
-                style_props={
-                    "marker": "o",
-                    "linestyle": "none",
-                },
-            )
+            if show_targets:
+                chart.add_xy_data(
+                    label=f"q{i+1}, targets",
+                    x1_values=target_times,
+                    y1_values=_to_degrees(i, self._q_sets[:, i]),
+                    style_props={
+                        "marker": "o",
+                        "linestyle": "none",
+                    },
+                )
 
         chart.x1.add_title("time, s")
         chart.y1.add_title("joint coordinate")
@@ -307,7 +308,7 @@ class JointSpaceScheme:
         chart.add_legend(columns=columns)
         return chart
 
-    def plot_velocities(self) -> LineChart:
+    def plot_velocities(self, show_targets: bool = False) -> LineChart:
         """
         Plots the velocities qd(t) of the joints and returns the LineChart
         object. Call show() on this object to see the plot.
@@ -330,7 +331,7 @@ class JointSpaceScheme:
                 x1_values=self._t_arr,
                 y1_values=self._qd_arr[:, i],
             )
-            if self.has_motion_profiles:
+            if self.has_motion_profiles and show_targets:
                 # noinspection PyUnboundLocalVariable
                 chart.add_xy_data(
                     label=f"qd{i+1}, targets",
@@ -354,7 +355,7 @@ class JointSpaceScheme:
         chart.add_legend(columns=columns)
         return chart
 
-    def plot_accelerations(self) -> LineChart:
+    def plot_accelerations(self, show_targets: bool = False) -> LineChart:
         """
         Plots the accelerations qdd(t) of the joints and returns the
         LineChart object. Call show() on this object to see the plot.
@@ -377,7 +378,7 @@ class JointSpaceScheme:
                 x1_values=self._t_arr,
                 y1_values=self._qdd_arr[:, i],
             )
-            if self.has_motion_profiles:
+            if self.has_motion_profiles and show_targets:
                 # noinspection PyUnboundLocalVariable
                 chart.add_xy_data(
                     label=f"qdd{i + 1}, targets",
@@ -495,6 +496,7 @@ class CartesianSpaceScheme:
         )
         t_arr, traj_frames = cm.trajectory()
         _, p_arr, V_arr, A_arr = cm.motion_samples
+
         target_times = np.concatenate(([0.0], np.cumsum(dt_segments)))
         target_V_arr = np.array([
             cm.motion_profile.spatial_velocity(t)
@@ -554,11 +556,20 @@ class CartesianSpaceScheme:
         of the forward kinematics of the manipulator.
         """
         frames = [jss.manipulator.fwd_kin(row) for row in jss.positions]
+        p_arr = np.array([frame.to_pose_vector() for frame in frames])
+        jacobians = [jss.manipulator.jacobian(row) for row in jss.positions]
+        V_arr = np.array([J @ qd for J, qd in zip(jacobians, jss.velocities)])
+
+        if len(V_arr[0]) == 3:  # planar motion [v_x, v_y, w_z]
+            V_arr = np.array([[V[0], V[1], 0.0, 0.0, 0.0, V[2]] for V in V_arr])
+
         return cls(
             t_arr=jss.time_samples,
             traj_frames=frames,
             target_frames=jss.target_frames,
             dt_segments=jss.dt_segments,
+            p_arr=p_arr,
+            V_arr=V_arr,
         )
 
     @property
@@ -671,7 +682,7 @@ class CartesianSpaceScheme:
     def _pose_vectors_from_frames(frames: Sequence[Frame]) -> NumpyArray:
         return CartesianMultiStraightLineMotion._frames_to_pose_vectors(frames)
 
-    def plot_poses(self):
+    def plot_poses(self, show_targets: bool = False) -> CompositeLineChart:
         """
         Plots the Cartesian pose paths p(t) of the end-effector frame and
         returns the LineChart object. Call show() on this object to see the
@@ -698,7 +709,7 @@ class CartesianSpaceScheme:
                         x1_values=parent._t_arr,
                         y1_values=p_arr[:, i],
                     )
-                    if has_targets:
+                    if has_targets and show_targets:
                         chart.add_xy_data(
                             label=f"{label}, targets",
                             x1_values=target_times,
@@ -716,7 +727,7 @@ class CartesianSpaceScheme:
 
         return PlotTimePaths()
 
-    def plot_spatial_velocities(self):
+    def plot_spatial_velocities(self, show_targets: bool = False) -> CompositeLineChart:
         """
         Plots the spatial velocity paths V(t) of the end-effector frame and
         returns the LineChart object. Call show() on this object to see the
@@ -744,7 +755,7 @@ class CartesianSpaceScheme:
                         x1_values=parent._t_arr,
                         y1_values=V_arr[:, i],
                     )
-                    if has_targets:
+                    if has_targets and show_targets:
                         # noinspection PyUnresolvedReferences
                         chart.add_xy_data(
                             label=f"{label}, targets",
@@ -763,7 +774,7 @@ class CartesianSpaceScheme:
 
         return PlotSpatialVelocities()
 
-    def plot_spatial_accelerations(self):
+    def plot_spatial_accelerations(self, show_targets: bool = False) -> CompositeLineChart:
         """
         Plots the spatial acceleration paths A(t) of the end-effector frame and
         returns the LineChart object. Call show() on this object to see the
@@ -791,7 +802,7 @@ class CartesianSpaceScheme:
                         x1_values=parent._t_arr,
                         y1_values=A_arr[:, i],
                     )
-                    if has_targets:
+                    if has_targets and show_targets:
                         # noinspection PyUnresolvedReferences
                         chart.add_xy_data(
                             label=f"{label}, targets",

@@ -11,6 +11,8 @@ browser lifecycle, and websocket cleanup details. Those details are deliberately
 kept out of ``SwiftSimulator`` so the public API can stay focused on robot
 playback rather than Swift's transport mechanics.
 """
+from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from copy import deepcopy
 import json
@@ -24,9 +26,12 @@ from roboticstoolbox import ERobot
 from roboticstoolbox.backends.swift import Swift
 from swift import Button, Slider
 
-from python_robot.base.types import NumpyArray
-from python_robot.motion import JointSpaceScheme
 from python_robot.manipulator import URDFManipulator
+
+if TYPE_CHECKING:
+    from python_robot.base.types import NumpyArray
+    from python_robot.motion import JointSpaceScheme
+
 
 __all__ = ["SwiftSimulator"]
 

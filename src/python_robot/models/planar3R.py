@@ -1,7 +1,7 @@
 """
 Implements a class representing a "Simple Planar Three-Link Manipulator" (RRR).
 """
-from typing import Sequence, Literal
+from typing import Sequence, Literal, Any
 
 import numpy as np
 
@@ -32,6 +32,9 @@ class Planar3R(SerialLinkManipulator):
         q_lim: Sequence[Sequence[float]] | None = None,
         base_frame: Frame | None = None,
         tool_frame: Frame | None = None,
+        *,
+        plot_options: dict[str, Any] | None = None,
+        anim_options: dict[str, Any] | None = None,
     ) -> None:
         """
         Creates an instance of SP3RLinkManipulator.
@@ -59,7 +62,13 @@ class Planar3R(SerialLinkManipulator):
         self.q_lim = self._normalize_q_lim(q_lim)
         links = self._create_links()
 
-        super().__init__(links, base_frame=base_frame, tool_frame=tool_frame)
+        super().__init__(
+            links,
+            base_frame=base_frame,
+            tool_frame=tool_frame,
+            plot_options=plot_options,
+            anim_options=anim_options
+        )
 
     @staticmethod
     def _normalize_point_masses(point_masses: Sequence[float] | None) -> tuple[float, ...]:
@@ -190,7 +199,9 @@ class Planar3R(SerialLinkManipulator):
         which_solver: IKSolverSpec = "LM",
         **kwargs
     ) -> NumpyArray:
-        kwargs.pop("mask", None)  # mask cannot be assigned twice - ignore any mask in kwargs
+        # A mask cannot be assigned twice: ignore possible mask in kwargs
+        kwargs.pop("mask", None)
+
         return super().inv_kin(
             ee_frame=ee_frame,
             ini_guess=ini_guess,

@@ -66,6 +66,9 @@ class _ArrayBacked(NDArrayOperatorsMixin):
             )
         return getattr(ufunc, method)(*arrays, **kwargs)
 
+    def __str__(self) -> str:
+        return f"{self._array}"
+
     def __len__(self) -> int:
         return len(self._array)
 
