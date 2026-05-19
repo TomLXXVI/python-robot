@@ -480,6 +480,7 @@ class WorldScene:
         p2: ArrayLike3,
         color: str = "dimgray",
         line_width: float = 5.0,
+        opacity: float = 0.45,
     ) -> None:
         """
         Add a static line segment between two points.
@@ -491,6 +492,7 @@ class WorldScene:
             pv.Line(p1_arr, p2_arr),
             color=color,
             line_width=line_width,
+            opacity=opacity,
         )
 
     def add_point(
@@ -618,6 +620,7 @@ class WorldScene:
         p2: ArrayLike3,
         color: str = "dimgray",
         line_width: float = 5.0,
+        opacity: float = 0.45,
     ) -> LinkArtist:
         """
         Create an updateable link artist.
@@ -626,7 +629,7 @@ class WorldScene:
         p2_arr = self._as_point(p2)
 
         mesh = pv.Line(p1_arr, p2_arr)
-        self.plotter.add_mesh(mesh, color=color, line_width=line_width)
+        self.plotter.add_mesh(mesh, color=color, line_width=line_width, opacity=opacity)
         return LinkArtist(mesh=mesh)
 
     def update_link_artist(

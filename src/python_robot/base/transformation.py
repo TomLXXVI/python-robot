@@ -158,7 +158,7 @@ class Rotation(Transformation):
         return R_mat
 
     @classmethod
-    def from_axis(
+    def about_axis(
         cls,
         axis: Axis,
         angle: float,

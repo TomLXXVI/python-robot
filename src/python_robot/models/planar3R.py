@@ -70,6 +70,8 @@ class Planar3R(SerialLinkManipulator):
             anim_options=anim_options
         )
 
+        self.gravity = [0.0, -9.81, 0.0]
+
     @staticmethod
     def _normalize_point_masses(point_masses: Sequence[float] | None) -> tuple[float, ...]:
         if point_masses is None:
@@ -105,14 +107,13 @@ class Planar3R(SerialLinkManipulator):
     def _create_links(self) -> list[RevoluteMDHLink]:
 
         def _create_point_mass_dynamics(self_) -> list[LinkDynamicParams]:
-            link_lengths = (0.0, self_.l1, self_.l2)
             return [
                 LinkDynamicParams(
                     mass=mass,
-                    center_of_mass=(length, 0.0, 0.0),
+                    center_of_mass=(0.0, 0.0, 0.0),
                     inertia=np.zeros((3, 3)),
                 )
-                for mass, length in zip(self_.point_masses, link_lengths)
+                for mass in self_.point_masses
             ]
 
         dynamics = _create_point_mass_dynamics(self)

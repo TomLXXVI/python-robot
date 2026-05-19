@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Any
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -31,6 +31,22 @@ class LinkDynamicParams:
         if self.inertia is None:
             return np.zeros((3, 3))
         return np.asarray(self.inertia, dtype=float)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "mass": self.mass,
+            "center_of_mass": self.center_of_mass,
+            "inertia": self.inertia,
+            "motor_inertia": self.motor_inertia,
+            "viscous_friction": self.viscous_friction,
+            "coulomb_friction": self.coulomb_friction,
+            "gear_ratio": self.gear_ratio
+        }
+
+    def __str__(self) -> str:
+        lines = [f"{k}: {v}" for k, v in self.to_dict().items()]
+        lines[2] = f"inertia:\n{self.inertia}"
+        return "\n".join(lines)
 
 
 class AbstractLink(ABC):

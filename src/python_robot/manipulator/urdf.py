@@ -77,14 +77,14 @@ class URDFManipulator(SerialLinkManipulator):
             tld=None if tld is None else str(tld),
             xacro_tld=None if xacro_tld is None else str(xacro_tld),
         )
-        source_erobot = ERobot(
+        raw_source_erobot = ERobot(
             rtb_links,
             name=name,
             urdf_string=urdf_string,
             urdf_filepath=urdf_path,
         )
 
-        ordered_links = self._ordered_active_branch_links(source_erobot.links)
+        ordered_links = self._ordered_active_branch_links(raw_source_erobot.links)
         links, resolved_tool_frame = self._to_active_links(
             ordered_links,
             user_tool_frame=tool_frame,
@@ -105,7 +105,14 @@ class URDFManipulator(SerialLinkManipulator):
         )
 
         self._name = name
-        self._source_erobot = source_erobot
+        self._source_erobot = self._create_source_erobot(
+            links,
+            name=name,
+            urdf_string=urdf_string,
+            urdf_path=urdf_path,
+            base_frame=self.base_frame,
+            tool_frame=self.tool_frame,
+        )
         self._urdf_string = urdf_string
         self._urdf_path = Path(urdf_path)
         self._urdf_link_names = tuple(link.name for link in ordered_links)
@@ -121,12 +128,45 @@ class URDFManipulator(SerialLinkManipulator):
     @property
     def source_erobot(self) -> ERobot:
         """
-        Return the full Robotics Toolbox robot built from the source URDF.
+        Return a Robotics Toolbox robot for the imported active arm chain.
 
-        This preserves the imported RTB representation before it is reduced to
-        the serial-link abstraction used by ``URDFManipulator``.
+        Robotics Toolbox dynamics expect the robot link list to be ordered by
+        active joints. The raw URDF tree may contain fixed links before or
+        beside the active chain, so this robot mirrors the reduced serial arm
+        while retaining the source URDF metadata.
         """
         return self._source_erobot
+
+    @staticmethod
+    def _create_source_erobot(
+        links: Sequence[URDFLink],
+        *,
+        name: str,
+        urdf_string: str,
+        urdf_path: Any,
+        base_frame: Frame,
+        tool_frame: Frame,
+    ) -> ERobot:
+        """
+        Build an RTB robot from the reduced active chain for dynamics calls.
+        """
+        rtb_links = [link.rtb_link.copy() for link in links]
+
+        for j, link in enumerate(rtb_links):
+            link._parent = None
+            link._parent_name = None
+            link._children = []
+            link.jindex = j
+
+        robot = ERobot(
+            rtb_links,
+            name=name,
+            base=base_frame.matrix,
+            tool=tool_frame.matrix,
+        )
+        robot._urdf_string = urdf_string
+        robot._urdf_filepath = urdf_path
+        return robot
 
     @property
     def urdf_string(self) -> str:

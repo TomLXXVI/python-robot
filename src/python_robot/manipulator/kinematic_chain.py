@@ -10,7 +10,7 @@ from spatialmath import SE3
 from roboticstoolbox import ETS, ERobot
 
 from python_robot.base.types import NumpyArray, ArrayLike6
-from python_robot.base import Frame, WREF_FRAME, SpatialVelocity, Wrench
+from python_robot.base import Frame, WREF_FRAME, SpatialVelocity, Wrench, Vector
 
 from .exceptions import *
 from .links import AbstractLink
@@ -203,11 +203,13 @@ class KinematicChain(AbstractKinematicChain):
     @base_frame.setter
     def base_frame(self, frame: Frame) -> None:
         """
-        Sets the pose of the manipulator base frame w.r.t. the world frame.
+        Sets the manipulator base frame w.r.t. the world frame.
         """
         self._base_frame = frame
         if hasattr(self, "_erobot"):
             self._erobot.base = frame.matrix
+            # gravity vector as seen from the manipulator's base frame.
+            self._erobot.gravity = (~self._base_frame).transform(Vector(self._erobot.gravity)).array()
 
     @property
     def tool_frame(self) -> Frame:
@@ -259,11 +261,13 @@ class KinematicChain(AbstractKinematicChain):
         links = [link.rtb_link.copy() for link in self]
         for j, link in enumerate(links):
             link.jindex = j
-        return ERobot(
+        erobot = ERobot(
             links,
             base=self.base_frame.matrix,
             tool=self.tool_frame.matrix
         )
+        erobot.gravity = (~self._base_frame).transform(Vector(erobot.gravity)).array()
+        return erobot
 
     @property
     def ets(self) -> ETS:

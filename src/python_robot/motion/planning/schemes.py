@@ -4,9 +4,9 @@ from typing import Sequence, Literal
 import numpy as np
 
 from ...base.types import NumpyArray, AngleUnit
-from ...base import Frame
+from ...base import Frame, SpatialVelocity
 from ...manipulator import SerialLinkManipulator, ConfigurationError
-from ...charts import LineChart, CompositeLineChart
+from ...charts import LineChart, CompositeLineChart, BarChart
 from ...visualisation import WorldScene
 from ...utils import array_to_table
 from ...utils.introspection import get_valid_keyword_parameters
@@ -243,14 +243,18 @@ class JointSpaceScheme:
 
     def dynamics(self) -> NumpyArray:
         """
-        Returns the joint torques/forces that cause the manipulator's motion.
+        Returns the torques/forces acting on the joints of the manipulator.
+
+        Note that the effect of any external wrench applied to the end-effector
+        is not included (included are inertia, centripetal, Coriolis, friction
+        and gravity effects).
 
         Returns
         -------
         NumpyArray
             2D array: The first column of the array contains the sampled time
-            moments. The following columns contain the torques/forces to be
-            applied to the joints.
+            moments. The following columns contain the torques/forces acting on
+            the joints.
         """
         if self.manipulator.has_dynamics():
             tau_arr = np.array([
@@ -259,6 +263,102 @@ class JointSpaceScheme:
             ])
             return np.column_stack((self._t_arr, tau_arr))
         raise ConfigurationError("The manipulator's dynamics is not defined.")
+
+    def dynamics_distribution(
+        self,
+        bins: int | Sequence[float] = 10,
+        *,
+        absolute: bool = True,
+        normalize: bool = False,
+    ) -> NumpyArray:
+        """
+        Returns a time-weighted distribution of the joint torques/forces.
+
+        This is useful for judging how heavily a servo motor is loaded during
+        the defined motion. While ``dynamics()`` returns the torque/force time
+        history, this method summarizes how much movement time is spent in each
+        torque/force interval.
+
+        Parameters
+        ----------
+        bins : int | Sequence[float], default = 10
+            Number of equally spaced bins, or explicit bin edges.
+        absolute : bool, default = True
+            If True, use absolute torque/force values. If False, keep signed
+            values.
+        normalize : bool, default = False
+            If True, return fractions of the total movement time instead of
+            seconds.
+
+        Returns
+        -------
+        NumpyArray
+            2D array: The first two columns contain the lower and upper bin
+            edge. The following columns contain, for each joint, the time in
+            seconds or fraction of the movement time spent inside that bin.
+        """
+        tau_arr = self.dynamics()[:, 1:]
+        tau_values = np.abs(tau_arr) if absolute else tau_arr
+        sample_weights = self._time_sample_weights()
+
+        if isinstance(bins, int):
+            if bins < 1:
+                raise ValueError("bins must be at least 1.")
+
+            tau_min = 0.0 if absolute else float(np.min(tau_values))
+            tau_max = float(np.max(tau_values))
+            if tau_min == tau_max:
+                if absolute:
+                    tau_max = 1.0 if tau_max == 0.0 else tau_max * 1.05
+                else:
+                    span = 1.0 if tau_max == 0.0 else abs(tau_max) * 0.05
+                    tau_min -= span
+                    tau_max += span
+            bin_edges = np.linspace(tau_min, tau_max, bins + 1)
+        else:
+            bin_edges = np.asarray(bins, dtype=float)
+            if (
+                bin_edges.ndim != 1
+                or len(bin_edges) < 2
+                or np.any(np.diff(bin_edges) <= 0.0)
+            ):
+                raise ValueError("bins must contain strictly increasing bin edges.")
+
+        distributions = []
+        total_time = float(np.sum(sample_weights))
+        for i in range(self.n_joints):
+            hist, _ = np.histogram(
+                tau_values[:, i],
+                bins=bin_edges,
+                weights=sample_weights,
+            )
+            if normalize and total_time > 0.0:
+                hist = hist / total_time
+            distributions.append(hist)
+
+        return np.column_stack((
+            bin_edges[:-1],
+            bin_edges[1:],
+            np.array(distributions).T,
+        ))
+
+    def _time_sample_weights(self) -> NumpyArray:
+        """
+        Returns the representative time span around each sampled time moment.
+        """
+        if len(self._t_arr) == 1:
+            return np.ones(1)
+
+        dt_arr = np.diff(self._t_arr)
+        if np.any(dt_arr < 0.0):
+            raise ValueError("time samples must be sorted in ascending order.")
+
+        weights = np.empty_like(self._t_arr, dtype=float)
+        weights[0] = dt_arr[0] / 2.0
+        weights[-1] = dt_arr[-1] / 2.0
+        if len(self._t_arr) > 2:
+            weights[1:-1] = (dt_arr[:-1] + dt_arr[1:]) / 2.0
+        return weights
 
     def plot_positions(self, show_targets: bool = False) -> LineChart:
         """
@@ -428,6 +528,70 @@ class JointSpaceScheme:
             chart.add_legend(columns=columns)
             return chart
         raise ConfigurationError("The manipulator's dynamics is not defined.")
+
+    def plot_dynamics_distribution(
+        self,
+        bins: int | Sequence[float] = 10,
+        *,
+        absolute: bool = True,
+        normalize: bool = False,
+    ) -> BarChart:
+        """
+        Plots the time-weighted distribution of the joint torques/forces.
+
+        Parameters
+        ----------
+        bins : int | Sequence[float], default = 10
+            Number of equally spaced bins, or explicit bin edges.
+        absolute : bool, default = True
+            If True, use absolute torque/force values. If False, keep signed
+            values.
+        normalize : bool, default = False
+            If True, plot fractions of the total movement time instead of
+            seconds.
+
+        Returns
+        -------
+        BarChart
+        """
+        distribution = self.dynamics_distribution(
+            bins=bins,
+            absolute=absolute,
+            normalize=normalize,
+        )
+        lower_edges = distribution[:, 0]
+        upper_edges = distribution[:, 1]
+        bin_widths = upper_edges - lower_edges
+        bin_centers = (lower_edges + upper_edges) / 2.0
+
+        chart = BarChart()
+        bar_widths = 0.85 * bin_widths / self.n_joints
+
+        for i in range(self.n_joints):
+            offset = (i - (self.n_joints - 1) / 2.0) * bar_widths
+            chart.add_xy_data(
+                label=f"tau{i+1}",
+                x1_values=bin_centers + offset,  # type: ignore
+                y1_values=distribution[:, i + 2],
+                style_props={
+                    "width": bar_widths,
+                    "align": "center",
+                },
+            )
+
+        chart.x1.add_title(
+            "absolute joint torque/force" if absolute else "joint torque/force"
+        )
+        chart.y1.add_title(
+            "movement time fraction" if normalize else "movement time, s"
+        )
+        columns = 1
+        if self.n_joints == 2:
+            columns = 2
+        elif self.n_joints >= 3:
+            columns = 3
+        chart.add_legend(columns=columns)
+        return chart
 
 
 class CartesianSpaceScheme:
@@ -660,14 +824,40 @@ class CartesianSpaceScheme:
             return self._p_arr
         raise ValueError("Time paths are not available.")
 
-    @property
-    def spatial_velocities(self) -> NumpyArray:
+    def spatial_velocities(
+        self,
+        ref_frame: Literal["world", "end-effector"] = "world"
+    ) -> NumpyArray:
         """
         Returns the array of sampled spatial velocities V.
+
+        Parameters
+        ----------
+        ref_frame : Literal["world", "end-effector"], default = "world"
+            Indicates the reference frame in which the spatial velocities are
+            observed. By default, this reference frame is het world frame. If
+            ref_frame is "end-effector", spatial velocities are transformed to
+            the frame of the end-effector.
         """
+        def transform(frame_0E: Frame, VE_0: NumpyArray) -> NumpyArray:
+            frame_E0 = ~frame_0E
+            VE_E = frame_E0.transform(SpatialVelocity(VE_0), is_frame=False)
+            return np.asarray(VE_E, dtype=float)
+
         if self._V_arr is not None:
-            return self._V_arr
-        raise ValueError("Spatial velocities are not available.")
+            if ref_frame == "world":
+                return self._V_arr
+            if ref_frame == "end-effector":
+                V_arr = np.array([
+                    transform(frame, V)
+                    for frame, V
+                    in zip(self.trajectory_frames, self._V_arr)
+                ])
+                return V_arr
+        raise ValueError(
+            f"Spatial velocities are not available in "
+            f"reference frame {ref_frame}."
+        )
 
     @property
     def spatial_accelerations(self) -> NumpyArray:
@@ -727,14 +917,30 @@ class CartesianSpaceScheme:
 
         return PlotTimePaths()
 
-    def plot_spatial_velocities(self, show_targets: bool = False) -> CompositeLineChart:
+    def plot_spatial_velocities(
+        self,
+        ref_frame: Literal["world", "end-effector"] = "world",
+        show_targets: bool = False
+    ) -> CompositeLineChart:
         """
         Plots the spatial velocity paths V(t) of the end-effector frame and
         returns the LineChart object. Call show() on this object to see the
         plot.
+
+        Parameters
+        ----------
+        ref_frame : Literal["world", "end-effector"], default = "world"
+            Indicates the reference frame in which the spatial velocities are
+            observed. By default, this reference frame is het world frame. If
+            ref_frame is "end-effector", spatial velocities are transformed to
+            the frame of the end-effector.
+        show_targets : bool, default = False
+            If True, the spatial velocities of the initial target frames used
+            to construct the trajectory are indicated by dot markers on the
+            line charts.
         """
         labels = ("v_x", "v_y", "v_z", "w_x", "w_y", "w_z")
-        V_arr = self.spatial_velocities
+        V_arr = self.spatial_velocities(ref_frame)
         target_times = np.concatenate(([0.0], np.cumsum(self.dt_segments)))
         has_targets = (
             self._target_V_arr is not None
@@ -1465,6 +1671,15 @@ class _JointSpaceTables:
             headers.extend([f"tau{i+1}" for i in range(self._jss.n_joints)])
             table = array_to_table(tau_arr, headers=headers)
             return table
+        raise ConfigurationError("The manipulator's dynamics is not defined.")
+
+    @property
+    def dynamics_distribution(self) -> str:
+        if self._jss.manipulator.has_dynamics():
+            distribution = self._jss.dynamics_distribution()
+            headers = ["tau_min", "tau_max"]
+            headers.extend([f"tau{i+1}, s" for i in range(self._jss.n_joints)])
+            return array_to_table(distribution, headers=headers)
         raise ConfigurationError("The manipulator's dynamics is not defined.")
 
 

@@ -260,6 +260,15 @@ class Frame:
         return type(W)(coords=W_other.flatten())
 
     def _transform_position(self, v: Vector) -> Vector:
+        """
+        Transforms the position vector v as observed in this frame to the
+        position vector as it is observed from the reference frame of this
+        frame.
+
+        Returns
+        -------
+        AngularVelocity
+        """
         arr1 = np.asarray(self._transform_angular(cast(AngularVelocity, v)), dtype=float)
         arr2 = np.asarray(self.origin)
         arr = arr1 + arr2
