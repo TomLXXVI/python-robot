@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ...base.types import NumpyArray
+from automation_motion.base.types import NumpyArray
 from ...base import SpatialVelocity, SpatialAcceleration
 from ._profile_abc import MultiPointVectorMotionProfile
 

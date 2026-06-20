@@ -264,7 +264,7 @@ class Axis(_ArrayBacked):
             If coords is a null vector.
         """
         if not isinstance(coords, Vector):
-            coords: Vector = Vector(typing.cast(ArrayLike3, coords))
+            coords: Vector = Vector(coords)
         if coords.isnull():
             self.direction: NumpyArray = np.zeros(3)
         else:

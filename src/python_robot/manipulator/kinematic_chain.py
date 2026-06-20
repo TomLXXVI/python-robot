@@ -475,7 +475,7 @@ class KinematicChain(AbstractKinematicChain):
         ini_guess: Sequence[float], optional
             An initial guess for the joint coordinates.
         which_solver: IKSolverSpec, default = "LM"
-            Specificies the numeric IK-solver to use (see the docstrings of
+            Specifies the numeric IK-solver to use (see the docstrings of
             class ETS in module roboticstoolbox.robot.ETS.py).
         check_joint_limits: bool, default = True
             Indicates whether to check that a solution satisfies any joint
@@ -735,7 +735,7 @@ class KinematicChain(AbstractKinematicChain):
         Parameters
         ----------
         W_ee: Wrench | ArrayLike6
-            External static load excerted on the end-effector of the chain.
+            External static load exerted on the end-effector of the chain.
         ref_frame: RefFrame, default = "world"
             Specifies the reference frame in which the wrench of the
             end-effector is expressed. By default, this reference frame

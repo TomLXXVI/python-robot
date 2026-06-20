@@ -3,11 +3,12 @@ from typing import Sequence, Literal
 
 import numpy as np
 
-from ...base.types import NumpyArray, AngleUnit
+from automation_motion.base.types import NumpyArray, AngleUnit
+from automation_motion.charts import LineChart, CompositeLineChart, BarChart
+
 from ...base import Frame, SpatialVelocity
 from ...manipulator import SerialLinkManipulator, ConfigurationError
-from ...charts import LineChart, CompositeLineChart, BarChart
-from ...visualisation import WorldScene
+from ...visualisation.core import WorldScene
 from ...utils import array_to_table
 from ...utils.introspection import get_valid_keyword_parameters
 from .joint_multi import JointSpaceMotion, MultiPointMotionProfile, MultiPointMotionProfileType, IKTarget

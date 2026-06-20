@@ -15,7 +15,7 @@ from .scene import WorldScene
 from .artists import FrameArtist, LinkArtist
 
 if TYPE_CHECKING:
-    from manipulator.kinematic_chain import KinematicChain
+    from python_robot.manipulator.kinematic_chain import KinematicChain
 
 
 ToolVisual = Literal["auto", "none", "point", "frame", "both"]

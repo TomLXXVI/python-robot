@@ -1,13 +1,12 @@
 """
-Point-to-point motion of a single rigid body.
+Point-to-point motion of a single rigid body (actually a frame).
 """
 from dataclasses import dataclass, field, asdict
 from abc import ABC
 
-from ...base.types import NumpyArray
-from ...base import Frame
-from ..profiles_1D.point_to_point import MotionProfile
-from ..profiles_1D.point_to_point import (
+from automation_motion.base.types import NumpyArray
+from automation_motion.profiles_1D.point_to_point import MotionProfile
+from automation_motion.profiles_1D.point_to_point import (
     TriPhaseMotionProfile,
     PolyMotionProfile,
     TrapezoidalProfile,
@@ -15,6 +14,8 @@ from ..profiles_1D.point_to_point import (
     CubicMotionProfile,
     QuinticMotionProfile
 )
+
+from ...base import Frame
 
 __all__ = [
     "Trapezoidal",
@@ -183,7 +184,7 @@ class CartesianStraightLineMotion:
         if params.dt_tot is None:
             raise ValueError(
                 f"To create a {mpt.__name__} motion profile, "
-                f"paramter 'dt_tot' is required."
+                f"parameter 'dt_tot' is required."
             )
         return mpt(**asdict(params))
 

@@ -5,10 +5,11 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ...base.types import NumpyArray
+from automation_motion.base.types import NumpyArray
+from automation_motion.profiles_1D.multi_point import MultiPointCubicPath, MultiLinearPath
+
 from ...base import Frame
 from ...manipulator import SerialLinkManipulator
-from ..profiles_1D.multi_point import MultiPointCubicPath, MultiLinearPath
 
 __all__ = [
     "MultiPointMotionProfile",

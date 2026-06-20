@@ -201,7 +201,7 @@ class WorldScene:
     """
     3D world scene for static visualization of frames, links, and points.
 
-    The class also provides low-level support for updateable artists that can be
+    The class also provides low-level support for updatable artists that can be
     used by an external animator.
     """
 
@@ -526,7 +526,7 @@ class WorldScene:
             )
 
     # -------------------------------------------------------------------------
-    # Updateable artists
+    # Updatable artists
     # -------------------------------------------------------------------------
 
     def create_frame_artist(
@@ -623,7 +623,7 @@ class WorldScene:
         opacity: float = 0.45,
     ) -> LinkArtist:
         """
-        Create an updateable link artist.
+        Create an updatable link artist.
         """
         p1_arr = self._as_point(p1)
         p2_arr = self._as_point(p2)
@@ -658,7 +658,7 @@ class WorldScene:
         label_always_visible: bool = True,
     ) -> PointArtist:
         """
-        Create an updateable point artist.
+        Create an updatable point artist.
         """
         point_arr = self._as_point(point)
 

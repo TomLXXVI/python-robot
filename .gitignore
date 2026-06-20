@@ -3,12 +3,13 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
-*.pyc
+*.py[cod]
 .env
-/docs/
 /my_experiments/
-/tests/
-/src/python_robot.egg-info/
+*.egg-info/
 *.zip
 .ipynb_checkpoints/
 /AGENTS.md
+build/
+dist/
+

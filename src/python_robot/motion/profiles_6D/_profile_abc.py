@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from ...base.types import NumpyArray
-from ...charts import CompositeLineChart
+from automation_motion.base.types import NumpyArray
+from automation_motion.charts import CompositeLineChart
 
 __all__ = ["MultiPointVectorMotionProfile"]
 
