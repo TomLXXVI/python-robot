@@ -813,12 +813,12 @@ class KinematicChain(AbstractKinematicChain):
         self._viewer = KinematicChainViewer(self)
 
         if plot_options is not None:
-            self.set_plot_options(**plot_options)
+            self._set_plot_options(**plot_options)
 
         if anim_options is not None:
-            self.set_animation_options(**anim_options)
+            self._set_animation_options(**anim_options)
 
-    def set_plot_options(self, **kwargs) -> None:
+    def _set_plot_options(self, **kwargs) -> None:
         """
         Set default plotting options used by the chain viewer.
 
@@ -832,43 +832,99 @@ class KinematicChain(AbstractKinematicChain):
 
     def plot(self, **kwargs) -> None:
         """
-        Plots the current joint configuration of the kinematic chain in
-        3D-space.
+        Plot the current joint configuration of the kinematic chain in 3D.
+
+        Keyword arguments override corresponding defaults supplied through
+        ``plot_options`` when the chain was created.
 
         Parameters
         ----------
-        **kwargs:
-            Additional keyword arguments for 3D scene configuration (for details
-            see docstring of class WorldScene in visualisation.scene.py).
+        **kwargs
+            Optional visualization settings:
+
+            ``extent`` : float, default=4.0
+                Half-size of the planar grid.
+            ``spacing`` : float, default=1.0
+                Distance between adjacent grid lines.
+            ``grid_color`` : str, default="lightgray"
+                Color of ordinary grid lines.
+            ``axis_color`` : str, default="black"
+                Color of the principal grid axes.
+            ``background_color`` : str, default="white"
+                Background color of the render window.
+            ``off_screen`` : bool, default=False
+                Render without opening an interactive window.
+            ``window_size`` : tuple[int, int], default=(800, 600)
+                Width and height of the render window in pixels.
+            ``world_frame_scale`` : float, default=1.0
+                Axis length of the world reference frame.
+            ``frame_scale`` : float, default=1.0
+                Axis length of each link frame.
+            ``line_width`` : float, default=2.0
+                Line width of the link-frame axes.
+            ``show_label`` : bool, default=True
+                Show labels for named link frames.
+            ``label_offset`` : float, default=0.1
+                Label offset relative to ``frame_scale``.
+            ``label_font_size`` : int, default=14
+                Font size of link-frame labels.
+            ``tool_visual`` : {"auto", "none", "point", "frame", "both"},
+                default="auto"
+                How the tool-center point is visualized. ``"auto"`` hides an
+                identity tool transform and otherwise draws its frame.
+            ``tool_frame_scale`` : float, default=1.0
+                Axis length of the TCP frame.
+            ``tool_frame_line_width`` : float, default=2.0
+                Line width of the TCP-frame axes.
+            ``tool_point_color`` : str, default="darkorange"
+                Color of the TCP marker.
+            ``tool_point_size`` : float, default=12.0
+                Size of the TCP marker.
+            ``tool_link_color`` : str, default="darkorange"
+                Color of the segment connecting the final link to the TCP.
+            ``tool_link_line_width`` : float, default=3.0
+                Line width of the segment connecting the final link to the TCP.
+            ``tool_name`` : str or None, default="TCP"
+                Optional label for the TCP.
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        TypeError
+            If an unsupported keyword argument is supplied.
         """
         self._viewer.plot(**kwargs)
 
     async def plot_async(self, **kwargs) -> None:
         """
-        Plots the current joint-and-links configuration of the kinematic chain in
-        3D-space.
+        Plot the current joint configuration asynchronously in 3D.
 
-        This is an asynchronous version of the plot method that can be used in
-        Jupyter notebooks. (When calling this function, you need keyword await
-        in front of the method call.)
+        This is the asynchronous counterpart of :meth:`plot`, intended
+        primarily for Jupyter notebooks. Call it using ``await``.
 
         Parameters
         ----------
-        kwargs: dict
-            Additional keyword arguments for scene configuration (for details
-            see docstring of class WorldScene  in visualisation.scene.py).
+        **kwargs
+            Accepts all keyword arguments documented by :meth:`plot`, plus:
+
+            ``jupyter_backend`` : {"client", "server", "trame"} or None
+                PyVista rendering backend used in a Jupyter environment.
 
         Returns
         -------
         None
+
+        Raises
+        ------
+        TypeError
+            If an unsupported keyword argument is supplied.
         """
         await self._viewer.plot_async(**kwargs)
 
-    def set_animation_options(self, **kwargs) -> None:
+    def _set_animation_options(self, **kwargs) -> None:
         """
         Set default animation options used by the chain viewer.
 
@@ -888,8 +944,97 @@ class KinematicChain(AbstractKinematicChain):
         """
         Animate a sequence of manipulator joint configurations.
 
-        For info about the parameters of this function, see the docstring of
-        `manipulator.visualisation.KinematicChainViewer`.
+        Keyword arguments override corresponding defaults supplied through
+        ``anim_options`` when the chain was created.
+
+        Parameters
+        ----------
+        joint_coords : Sequence[Sequence[float]]
+            Sequence of joint-coordinate vectors. Each item is one full
+            configuration of the chain, with joints ordered from the base
+            toward the tool. The original chain configuration is restored after
+            the animation.
+        **kwargs
+            Optional animation settings:
+
+            ``extent`` : float, default=4.0
+                Half-size of the planar grid.
+            ``spacing`` : float, default=1.0
+                Distance between adjacent grid lines.
+            ``grid_color`` : str, default="lightgray"
+                Color of ordinary grid lines.
+            ``axis_color`` : str, default="black"
+                Color of the principal grid axes.
+            ``background_color`` : str, default="white"
+                Background color of the render window.
+            ``off_screen`` : bool, default=False
+                Render without opening an interactive window.
+            ``window_size`` : tuple[int, int], default=(800, 600)
+                Width and height of the render window in pixels.
+            ``world_frame_scale`` : float, default=1.0
+                Axis length of the world reference frame.
+            ``frame_scale`` : float, default=1.0
+                Axis length of each link frame.
+            ``frame_line_width`` : float, default=2.0
+                Line width of the link-frame axes.
+            ``link_line_width`` : float, default=5.0
+                Line width of the manipulator links.
+            ``show_frames`` : bool, default=True
+                Draw the local link frames.
+            ``frame_names`` : Sequence[str] or None, default=None
+                Optional labels for the link frames.
+            ``fps`` : int, default=20
+                Playback and output frame rate.
+            ``step`` : int, default=1
+                Animate every ``step``-th configuration.
+            ``gif_path`` : str, pathlib.Path or None, default=None
+                Optional destination for a GIF recording.
+            ``mp4_path`` : str, pathlib.Path or None, default=None
+                Optional destination for an MP4 recording.
+            ``show`` : bool, default=True
+                Show the render window.
+            ``interactive_update`` : bool, default=True
+                Keep the interactive window responsive during playback.
+            ``close_plotter`` : bool, default=False
+                Close the plotter after playback or file generation.
+            ``show_ee_path`` : bool, default=False
+                Draw the path traced by the end effector.
+            ``ee_path_color`` : str, default="orange"
+                Color of the end-effector path.
+            ``ee_path_line_width`` : float, default=3.0
+                Line width of the end-effector path.
+            ``tool_visual`` : {"auto", "none", "point", "frame", "both"},
+                default="auto"
+                How the tool-center point is visualized. ``"auto"`` hides an
+                identity tool transform and otherwise draws its frame.
+            ``tool_frame_scale`` : float or None, default=None
+                Axis length of the TCP frame. When omitted, ``0.7 *
+                frame_scale`` is used.
+            ``tool_frame_line_width`` : float, default=2.0
+                Line width of the TCP-frame axes.
+            ``tool_point_color`` : str, default="darkorange"
+                Color of the TCP marker.
+            ``tool_point_size`` : float, default=12.0
+                Size of the TCP marker.
+            ``tool_link_color`` : str, default="darkorange"
+                Color of the segment connecting the final link to the TCP.
+            ``tool_link_line_width`` : float, default=3.0
+                Line width of the segment connecting the final link to the TCP.
+            ``tool_name`` : str or None, default="TCP"
+                Optional label for the TCP.
+            ``camera_setup`` : Callable[[WorldScene], None] or None, default=None
+                Callback that configures the camera before playback starts.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        TypeError
+            If an unsupported keyword argument is supplied.
+        ValueError
+            If ``joint_coords`` is empty.
         """
         self._viewer.animate(
             joint_coords=joint_coords,
@@ -902,9 +1047,32 @@ class KinematicChain(AbstractKinematicChain):
         **kwargs
     ) -> None:
         """
-        Animate a sequence of manipulator joint configurations asynchronously.
+        Animate a sequence of joint configurations asynchronously.
 
-        Use this method in Jupyter notebooks and other async contexts.
+        This is the asynchronous counterpart of :meth:`animate`, intended for
+        Jupyter notebooks and other async contexts. Call it using ``await``.
+
+        Parameters
+        ----------
+        joint_coords : Sequence[Sequence[float]]
+            Sequence of complete joint configurations, ordered from base to
+            tool. The original chain configuration is restored afterward.
+        **kwargs
+            Accepts all keyword arguments documented by :meth:`animate`, plus:
+
+            ``jupyter_backend`` : {"client", "server", "trame"} or None
+                PyVista rendering backend used in a Jupyter environment.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        TypeError
+            If an unsupported keyword argument is supplied.
+        ValueError
+            If ``joint_coords`` is empty.
         """
         await self._viewer.animate_async(
             joint_coords=joint_coords,
