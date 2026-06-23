@@ -1,3 +1,10 @@
+"""
+Legacy Product-of-Exponentials link adapters.
+
+The classes in this module accept screw-axis descriptions and convert them to
+Elementary Transform Sequences used by Robotics Toolbox.
+"""
+
 from abc import ABC
 
 import numpy as np
@@ -28,6 +35,21 @@ class AbstractPoELink(AbstractLink, ABC):
         joint_limits: tuple[float, float] | None = None,
         dynamics: LinkDynamicParams | None = None
     ) -> None:
+        """
+        Create a PoE link from a screw-axis description.
+
+        Parameters
+        ----------
+        axis : ArrayLike3
+            Direction of the revolute or prismatic screw axis.
+        position : ArrayLike3 | None
+            Point on the screw axis for revolute joints. ``None`` indicates a
+            pure prismatic joint.
+        joint_limits : tuple[float, float], optional
+            Lower and upper joint limits.
+        dynamics : LinkDynamicParams, optional
+            Dynamic parameters assigned to the link.
+        """
         self._axis = axis
         self._position = position
         self._joint_limits = joint_limits
@@ -94,6 +116,12 @@ class AbstractPoELink(AbstractLink, ABC):
 
 
 class RevolutePoELink(AbstractPoELink, AbstractRevoluteLink):
+    """
+    Legacy revolute link defined by a Product-of-Exponentials screw axis.
+
+    The screw-axis description is converted internally to an ETS link so it can
+    be used by the common kinematic-chain implementation.
+    """
 
     def __init__(
         self,
@@ -122,6 +150,12 @@ class RevolutePoELink(AbstractPoELink, AbstractRevoluteLink):
 
 
 class PrismaticPoELink(AbstractPoELink, AbstractPrismaticLink):
+    """
+    Legacy prismatic link defined by a Product-of-Exponentials screw axis.
+
+    The translation axis is converted internally to an ETS prismatic joint for
+    use by the common kinematic-chain implementation.
+    """
 
     def __init__(
         self,

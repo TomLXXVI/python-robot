@@ -16,6 +16,17 @@ from .frame import Frame
 
 @dataclass(frozen=True)
 class InertiaTensor:
+    """
+    Inertia tensor of a rigid body expressed in a body-fixed frame.
+
+    Parameters
+    ----------
+    J_xx, J_yy, J_zz : float
+        Principal second moments of mass.
+    J_xy, J_xz, J_yz : float, default = 0.0
+        Products of inertia. Defaults to zero for principal-axis tensors.
+    """
+
     J_xx: float
     J_yy: float
     J_zz: float
@@ -25,6 +36,14 @@ class InertiaTensor:
 
     @property
     def matrix(self) -> NumpyArray:
+        """
+        Return the inertia tensor as a symmetric 3-by-3 matrix.
+
+        Returns
+        -------
+        NumpyArray
+            Inertia tensor matrix.
+        """
         return np.array([
             [self.J_xx, self.J_xy, self.J_xz],
             [self.J_xy, self.J_yy, self.J_yz],
@@ -34,6 +53,21 @@ class InertiaTensor:
 
 @dataclass(frozen=True)
 class RBMSimSolution:
+    """
+    Time-series result of a rigid-body motion simulation.
+
+    Parameters
+    ----------
+    t_arr : NumpyArray
+        Simulation time samples.
+    p_arr, v_arr, a_arr : NumpyArray | None, optional
+        Translational position, velocity, and acceleration samples.
+    omega_arr, omega_dot_arr : NumpyArray | None, optional
+        Angular velocity and angular acceleration samples.
+    frames : list[Frame], optional
+        Simulated body frames at each time sample.
+    """
+
     t_arr: NumpyArray
     p_arr: NumpyArray | None = None
     v_arr: NumpyArray | None = None

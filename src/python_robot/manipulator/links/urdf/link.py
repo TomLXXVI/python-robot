@@ -1,3 +1,7 @@
+"""
+Adapter from Robotics Toolbox URDF links to ``python_robot`` links.
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -12,9 +16,21 @@ __all__ = ["URDFLink"]
 
 class URDFLink(AbstractLink):
     """
-    Adapter around a Robotics Toolbox Link imported from URDF.
+    Adapter around a Robotics Toolbox link imported from URDF.
+
+    The adapter detaches the source link from the URDF tree, preserves its
+    active joint type, and extracts dynamic parameters for use by
+    ``SerialLinkManipulator``.
     """
     def __init__(self, rtb_link: RTBLink) -> None:
+        """
+        Create a link adapter from a Robotics Toolbox URDF link.
+
+        Parameters
+        ----------
+        rtb_link : RTBLink
+            Robotics Toolbox link parsed from a URDF model.
+        """
         link = deepcopy(rtb_link)
         self._detach_from_urdf_tree(link)
 
@@ -61,8 +77,14 @@ class URDFLink(AbstractLink):
 
     @property
     def is_revolute(self) -> bool:
+        """
+        Return True when the imported URDF link has a revolute joint.
+        """
         return bool(self.rtb_link.isrevolute)
 
     @property
     def is_prismatic(self) -> bool:
+        """
+        Return True when the imported URDF link has a prismatic joint.
+        """
         return bool(self.rtb_link.isprismatic)

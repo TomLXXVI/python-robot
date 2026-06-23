@@ -1,3 +1,11 @@
+"""
+Six-dimensional linear vector paths with parabolic blends.
+
+The module provides a vector-valued multipoint profile for Cartesian pose
+vectors. Linear segments keep all pose components synchronized, while parabolic
+blends smooth velocity transitions at path points.
+"""
+
 from typing import Sequence
 
 from dataclasses import dataclass
@@ -30,18 +38,30 @@ class VectorPathPiece:
 
     @property
     def t_f(self) -> float:
+        """
+        Return the end time of this path piece.
+        """
         return self.t0 + self.dt
 
     def position(self, t: float) -> NumpyArray:
+        """
+        Return the vector position on this piece at time ``t``.
+        """
         tau = min(max(t - self.t0, 0.0), self.dt)
         return self.x0 + self.v0 * tau + 0.5 * self.a * tau**2  # type: ignore
 
     def velocity(self, t: float) -> NumpyArray:
+        """
+        Return the vector velocity on this piece at time ``t``.
+        """
         tau = min(max(t - self.t0, 0.0), self.dt)
         return self.v0 + self.a * tau
 
     # noinspection PyUnusedLocal
     def acceleration(self, t: float) -> NumpyArray:
+        """
+        Return the constant vector acceleration of this piece.
+        """
         return self.a
 
 

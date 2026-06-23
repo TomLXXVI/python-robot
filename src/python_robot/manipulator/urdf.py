@@ -1,3 +1,11 @@
+"""
+Import serial manipulators from URDF or xacro robot descriptions.
+
+URDF models are reduced to a single active serial arm chain and adapted to the
+``SerialLinkManipulator`` API. Fixed transforms are folded into active links or
+the effective tool frame.
+"""
+
 from __future__ import annotations
 from typing import Sequence, Any
 
@@ -201,6 +209,14 @@ class URDFManipulator(SerialLinkManipulator):
 
     @property
     def urdf(self):
+        """
+        Return the parsed Robotics Toolbox URDF object.
+
+        Returns
+        -------
+        URDF
+            Parsed URDF document loaded from the resolved URDF XML string.
+        """
         return URDF.loadstr(self.urdf_string, self.urdf_path, self.urdf_path.parent)
 
     @staticmethod

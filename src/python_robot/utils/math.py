@@ -1,3 +1,7 @@
+"""
+Numerical helper functions for motion-profile calculations.
+"""
+
 import typing
 from typing import Callable
 

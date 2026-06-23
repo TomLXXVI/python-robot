@@ -1,3 +1,11 @@
+"""
+Serial-link manipulator model with kinematics and dynamics helpers.
+
+The module defines :class:`SerialLinkManipulator`, a kinematic chain with
+additional dynamic calculations such as inverse dynamics, gravity loading, mass
+matrices, friction loads, and end-effector wrench mapping.
+"""
+
 from typing import Sequence, Any
 
 import numpy as np

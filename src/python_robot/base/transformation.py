@@ -1,3 +1,11 @@
+"""
+Rigid-body transformations in 3D space.
+
+The module provides value objects for translations, rotations, and screw
+motions. Each transformation exposes an ``SE3`` homogeneous matrix so it can be
+composed with frames and other transformations.
+"""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -14,8 +22,17 @@ __all__ = ["Transformation", "Translation", "Rotation", "Screw"]
 
 
 class Transformation(ABC):
+    """
+    Abstract base class for homogeneous rigid-body transformations.
+
+    Subclasses provide concrete transformation types while sharing the common
+    ``matrix`` and ``inv`` protocol.
+    """
 
     def __init__(self) -> None:
+        """
+        Initialize an identity transformation matrix.
+        """
         self._matrix: SE3 = SE3()
 
     @property
@@ -35,13 +52,28 @@ class Transformation(ABC):
     @abstractmethod
     def from_matrix(cls, matrix: SE3) -> Transformation:
         """
-        Creates a Transformation object from a 4x4 homogeneous matrix.
+        Create a transformation object from a homogeneous matrix.
+
+        Parameters
+        ----------
+        matrix : SE3
+            Homogeneous transformation matrix.
+
+        Returns
+        -------
+        Transformation
+            Transformation represented by ``matrix``.
         """
         pass
 
     def inv(self) -> Transformation:
         """
-        Returns the inverse of the transformation.
+        Return the inverse transformation.
+
+        Returns
+        -------
+        Transformation
+            Transformation that undoes this transformation.
         """
         inv_matrix = self._matrix.inv()
         return self.from_matrix(inv_matrix)
@@ -79,6 +111,20 @@ class Translation(Transformation):
 
     @classmethod
     def from_matrix(cls, matrix: SE3) -> Translation:
+        """
+        Create a translation from a homogeneous transformation matrix.
+
+        Parameters
+        ----------
+        matrix : SE3
+            Homogeneous transformation matrix. Only the translation component is
+            used.
+
+        Returns
+        -------
+        Translation
+            Translation represented by the matrix translation vector.
+        """
         return cls(Vector(matrix.t))
 
     @property
@@ -95,6 +141,14 @@ class Translation(Transformation):
 
     @property
     def distance(self) -> float:
+        """
+        Return the Euclidean length of the translation vector.
+
+        Returns
+        -------
+        float
+            Translation distance.
+        """
         return float(np.sqrt(np.square(self.vector).sum()))
 
 
@@ -185,6 +239,22 @@ class Rotation(Transformation):
 
     @classmethod
     def from_matrix(cls, matrix: SE3, angle_unit: AngleUnit = "rad") -> Rotation:
+        """
+        Create a rotation from a homogeneous transformation matrix.
+
+        Parameters
+        ----------
+        matrix : SE3
+            Homogeneous transformation matrix. Its rotational part defines the
+            rotation and its translation defines the pole.
+        angle_unit : AngleUnit, default = "rad"
+            Unit used for the extracted rotation angle.
+
+        Returns
+        -------
+        Rotation
+            Rotation represented by ``matrix``.
+        """
         theta, axis = matrix.angvec(angle_unit)
         vector = Vector.from_axis(Axis(axis), theta)
         pole = Vector(matrix.t)

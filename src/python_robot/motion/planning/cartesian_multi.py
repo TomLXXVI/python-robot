@@ -1,3 +1,11 @@
+"""
+Multi-segment Cartesian straight-line motion planning.
+
+This module converts target frames to six-dimensional pose vectors, constructs
+a vector-valued linear path with parabolic blends, and samples the resulting
+Cartesian trajectory.
+"""
+
 from typing import Sequence
 
 from dataclasses import dataclass
@@ -253,4 +261,13 @@ class CartesianMultiStraightLineMotion:
 
     @property
     def motion_samples(self) -> tuple[NumpyArray, ...]:
+        """
+        Return sampled Cartesian motion data.
+
+        Returns
+        -------
+        tuple[NumpyArray, ...]
+            Time samples, pose-vector samples, spatial velocity samples, and
+            spatial acceleration samples.
+        """
         return self._t_arr, self._p_arr, self._V_arr, self._A_arr

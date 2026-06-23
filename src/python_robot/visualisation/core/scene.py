@@ -1,3 +1,11 @@
+"""
+PyVista world scene and camera helpers for robotics visualisation.
+
+The module provides static scene primitives and updatable artists for frames,
+links, and points. Animators use those artists to update robot geometry without
+rebuilding the whole scene.
+"""
+
 from __future__ import annotations
 from typing import Literal
 
@@ -14,6 +22,14 @@ class Camera:
     Convenience wrapper around PyVista camera controls.
     """
     def __init__(self, plotter: pv.Plotter) -> None:
+        """
+        Create a camera helper for a PyVista plotter.
+
+        Parameters
+        ----------
+        plotter : pv.Plotter
+            Plotter whose active camera is controlled by this helper.
+        """
         self.plotter = plotter
 
     def set_top_view(self) -> None:
@@ -140,6 +156,18 @@ class Camera:
             self.plotter.render()
 
     def pan(self, dx: float = 0.0, dy: float = 0.0, amount: float = 0.1) -> None:
+        """
+        Pan the camera parallel to the current view plane.
+
+        Parameters
+        ----------
+        dx : float, default = 0.0
+            Horizontal pan direction and magnitude multiplier.
+        dy : float, default = 0.0
+            Vertical pan direction and magnitude multiplier.
+        amount : float, default = 0.1
+            Base displacement applied to the normalized pan direction.
+        """
         cam = self.plotter.camera
 
         position = np.asarray(cam.position, dtype=float)

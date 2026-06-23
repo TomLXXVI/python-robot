@@ -1,3 +1,11 @@
+"""
+Multi-point joint-space motion planning from Cartesian targets.
+
+The module maps Cartesian target frames to joint coordinates with inverse
+kinematics, creates one motion profile per joint, and samples joint position,
+velocity, and acceleration trajectories.
+"""
+
 from typing import Sequence
 
 from enum import StrEnum
@@ -24,12 +32,27 @@ MultiPointMotionProfile = MultiPointCubicPath | MultiLinearPath
 
 
 class MultiPointMotionProfileType(StrEnum):
+    """
+    Available one-dimensional multi-point profile families for joint motion.
+    """
+
     CUBIC = "cubic"
     LINEAR = "linear"
 
 
 @dataclass(frozen=True)
 class IKMask:
+    """
+    Degrees of freedom enabled during inverse-kinematics target solving.
+
+    Parameters
+    ----------
+    x, y, z : bool, default = True
+        Enable translation constraints along the corresponding Cartesian axes.
+    alpha, beta, gamma : bool, default = True
+        Enable orientation constraints around the corresponding axes.
+    """
+
     x: bool = True
     y: bool = True
     z: bool = True
@@ -38,6 +61,14 @@ class IKMask:
     gamma: bool = True
 
     def to_array(self) -> NumpyArray:
+        """
+        Return the inverse-kinematics mask as a Boolean NumPy array.
+
+        Returns
+        -------
+        NumpyArray
+            Boolean array ordered as ``x, y, z, alpha, beta, gamma``.
+        """
         return np.array(
             [self.x, self.y, self.z,
              self.alpha, self.beta, self.gamma],
@@ -47,6 +78,18 @@ class IKMask:
 
 @dataclass
 class IKTarget:
+    """
+    Cartesian target frame with an optional inverse-kinematics mask.
+
+    Parameters
+    ----------
+    frame : Frame
+        Desired end-effector frame.
+    ik_mask : IKMask, optional
+        Degrees of freedom enabled for inverse kinematics. If omitted, all
+        translational and rotational constraints are enabled.
+    """
+
     frame: Frame
     ik_mask: IKMask | None = None
 
@@ -56,6 +99,13 @@ class IKTarget:
 
 
 class JointSpaceMotion:
+    """
+    Convert Cartesian targets into sampled joint-space motion.
+
+    The class solves inverse kinematics for each target frame, builds a
+    multi-point profile for each joint, and samples joint positions, velocities,
+    and accelerations over the complete movement.
+    """
 
     def __init__(
         self,

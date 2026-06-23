@@ -1,3 +1,10 @@
+"""
+Animation helpers for frames and kinematic chains.
+
+The module updates PyVista artists over sampled frame or joint-coordinate
+sequences and can optionally write the result to GIF or MP4 output.
+"""
+
 from __future__ import annotations
 from typing import Callable, Literal, Sequence, TYPE_CHECKING
 

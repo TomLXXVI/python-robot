@@ -1,3 +1,7 @@
+"""
+Callable introspection helpers used by plotting and animation dispatchers.
+"""
+
 from typing import Callable, Any
 
 import inspect

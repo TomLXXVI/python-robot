@@ -1,3 +1,7 @@
+"""
+High-level plotting and animation wrapper for kinematic chains.
+"""
+
 from __future__ import annotations
 from typing import Literal, Sequence, Any, TYPE_CHECKING
 
@@ -29,6 +33,14 @@ class KinematicChainViewer:
     rendered robot geometry.
     """
     def __init__(self, kinematic_chain: KinematicChain) -> None:
+        """
+        Create a viewer for a kinematic chain.
+
+        Parameters
+        ----------
+        kinematic_chain : KinematicChain
+            Chain whose current configuration can be plotted or animated.
+        """
         self.kinematic_chain = kinematic_chain
 
         self._plot_scene_kwargs: dict[str, Any] = {}
@@ -201,6 +213,15 @@ class KinematicChainViewer:
         return scene_kwargs, frame_kwargs, tool_visual_kwargs
 
     def set_plot_options(self, **kwargs) -> None:
+        """
+        Set default options used by subsequent plot calls.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments accepted by the plot scene, frame, and tool/TCP
+            visual helpers.
+        """
         tup = self._plot_kwargs_dispatcher(**kwargs)
         self._plot_scene_kwargs = tup[0]
         self._plot_frame_kwargs = tup[1]
@@ -252,6 +273,14 @@ class KinematicChainViewer:
         return scene_kwargs, anim_kwargs
 
     def set_animation_options(self, **kwargs) -> None:
+        """
+        Set default options used by subsequent animation calls.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments accepted by the animation scene and animator.
+        """
         tup = self._anim_kwargs_dispatcher(**kwargs)
         self._anim_scene_kwargs = tup[0]
         self._anim_anim_kwargs = tup[1]

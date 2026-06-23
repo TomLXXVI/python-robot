@@ -1,3 +1,11 @@
+"""
+Kinematic-chain containers and serial manipulator kinematics.
+
+The module defines the list-like link container used by serial manipulators and
+the concrete :class:`KinematicChain` implementation for forward kinematics,
+inverse kinematics, Jacobians, static wrench mapping, plotting, and animation.
+"""
+
 from __future__ import annotations
 from typing import Sequence, overload, Literal, Any
 from collections.abc import Iterable, Iterator, MutableSequence
@@ -41,6 +49,15 @@ class AbstractKinematicChain(MutableSequence[AbstractLink], ABC):
         self,
         links: Iterable[AbstractLink] | None = None,
     ) -> None:
+        """
+        Create a list-like container for links.
+
+        Parameters
+        ----------
+        links : Iterable[AbstractLink], optional
+            Initial links ordered from base to tool. Positive external indices
+            are one-based; negative indices follow normal Python semantics.
+        """
         self._links: list[AbstractLink] = list(links) if links is not None else []
 
     def __iter__(self) -> Iterator[AbstractLink]:
@@ -125,6 +142,17 @@ class AbstractKinematicChain(MutableSequence[AbstractLink], ABC):
             del self._links[self._normalize_index(index)]
 
     def insert(self, index: int, value: AbstractLink) -> None:
+        """
+        Insert a link at a one-based chain index.
+
+        Parameters
+        ----------
+        index : int
+            One-based insertion index. Negative values follow Python insertion
+            semantics relative to the end of the chain.
+        value : AbstractLink
+            Link to insert.
+        """
         self._links.insert(self._normalize_insert_index(index), value)
 
     def __repr__(self) -> str:
@@ -196,7 +224,7 @@ class KinematicChain(AbstractKinematicChain):
     @property
     def base_frame(self) -> Frame:
         """
-        Returns the pose of the manipulator base frame w.r.t. the world frame.
+        Return the pose of the manipulator base frame relative to the world.
         """
         return self._base_frame
 
@@ -288,7 +316,7 @@ class KinematicChain(AbstractKinematicChain):
     @property
     def joint_coords(self) -> list[float]:
         """
-        Returns the list of joint coordinates.
+        Return the current joint coordinates ordered from base to tool.
         """
         return self._joint_coords
 
@@ -599,7 +627,23 @@ class KinematicChain(AbstractKinematicChain):
         rcond: float | None = None,
     ) -> NumpyArray:
         """
-        Returns the Moore-Penrose pseudo-inverse of the manipulator Jacobian.
+        Return the Moore-Penrose pseudo-inverse of the manipulator Jacobian.
+
+        Parameters
+        ----------
+        joint_coords : Sequence[float], optional
+            Joint coordinates at which to evaluate the Jacobian. If omitted,
+            the current chain configuration is used.
+        ref_frame : RefFrame, default = "world"
+            Reference frame used for the spatial velocity represented by the
+            Jacobian.
+        rcond : float, optional
+            Cutoff for small singular values passed to ``numpy.linalg.pinv``.
+
+        Returns
+        -------
+        NumpyArray
+            Pseudo-inverse Jacobian matrix.
         """
         jac = self.jacobian(joint_coords=joint_coords, ref_frame=ref_frame)
         if rcond is None:
@@ -775,6 +819,15 @@ class KinematicChain(AbstractKinematicChain):
             self.set_animation_options(**anim_options)
 
     def set_plot_options(self, **kwargs) -> None:
+        """
+        Set default plotting options used by the chain viewer.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword options forwarded to
+            :meth:`KinematicChainViewer.set_plot_options`.
+        """
         self._viewer.set_plot_options(**kwargs)
 
     def plot(self, **kwargs) -> None:
@@ -816,6 +869,15 @@ class KinematicChain(AbstractKinematicChain):
         await self._viewer.plot_async(**kwargs)
 
     def set_animation_options(self, **kwargs) -> None:
+        """
+        Set default animation options used by the chain viewer.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword options forwarded to
+            :meth:`KinematicChainViewer.set_animation_options`.
+        """
         self._viewer.set_animation_options(**kwargs)
 
     def animate(

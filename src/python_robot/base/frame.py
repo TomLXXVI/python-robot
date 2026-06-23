@@ -1,3 +1,11 @@
+"""
+Coordinate frames and frame-based rigid-body kinematics.
+
+This module defines :class:`Frame`, the main pose object used to describe
+position and orientation in 3D space. It also provides helpers for converting
+pose derivatives to spatial velocities and accelerations.
+"""
+
 from __future__ import annotations
 from typing import Literal, cast
 
@@ -115,6 +123,22 @@ class Frame:
 
     @classmethod
     def from_matrix(cls, matrix: SE3, angle_unit: AngleUnit = "rad") -> Frame:
+        """
+        Create a frame from a homogeneous transformation matrix.
+
+        Parameters
+        ----------
+        matrix : SE3
+            Homogeneous transformation matrix whose translation and rotation
+            define the frame pose.
+        angle_unit : AngleUnit, default = "rad"
+            Unit used for the returned roll-pitch-yaw angles.
+
+        Returns
+        -------
+        Frame
+            Frame with origin and orientation extracted from ``matrix``.
+        """
         origin = matrix.t
         orient_mat = SO3(matrix.R)
         orient_angles = orient_mat.rpy(angle_unit, order="zyx")

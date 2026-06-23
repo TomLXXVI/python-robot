@@ -1,3 +1,11 @@
+"""
+Shared type aliases for robotics geometry and numerical arrays.
+
+The aliases in this module keep public signatures compact while preserving the
+distinction between angle units, angular speed units, and NumPy-backed array
+values.
+"""
+
 from typing import Literal, TypeAlias, Any
 
 import numpy as np

@@ -1,3 +1,7 @@
+"""
+Text-table formatting helpers for NumPy arrays.
+"""
+
 from collections.abc import Callable, Sequence
 from typing import Any
 

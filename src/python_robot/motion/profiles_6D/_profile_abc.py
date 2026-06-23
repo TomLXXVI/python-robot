@@ -1,3 +1,7 @@
+"""
+Abstract base class for sampled vector-valued multipoint motion profiles.
+"""
+
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -9,33 +13,58 @@ __all__ = ["MultiPointVectorMotionProfile"]
 
 
 class MultiPointVectorMotionProfile(ABC):
+    """
+    Abstract interface for vector-valued multipoint motion profiles.
+
+    Subclasses define pose, velocity, acceleration, spatial velocity, and
+    spatial acceleration as time-functions. The helper methods sample those
+    functions and build charts for inspecting the resulting motion.
+    """
 
     def __init__(self) -> None:
+        """
+        Initialize the total duration of the motion profile.
+        """
         self.dt_tot: float = 0.0
 
     @abstractmethod
     def pose(self, t: float) -> NumpyArray:
+        """
+        Return the pose vector at time ``t``.
+        """
         pass
 
     @abstractmethod
     def velocity(self, t: float) -> NumpyArray:
+        """
+        Return the pose-vector derivative at time ``t``.
+        """
         pass
 
     @abstractmethod
     def acceleration(self, t: float) -> NumpyArray:
+        """
+        Return the pose-vector second derivative at time ``t``.
+        """
         pass
 
     @abstractmethod
     def spatial_velocity(self, t: float) -> NumpyArray:
+        """
+        Return the spatial velocity at time ``t``.
+        """
         pass
 
     @abstractmethod
     def spatial_acceleration(self, t: float) -> NumpyArray:
+        """
+        Return the spatial acceleration at time ``t``.
+        """
         pass
 
     def position_profile(self, n_samples: int = 100) -> tuple[NumpyArray, NumpyArray]:
         """
-        Returns the sampled position profile of the vector-valued path.
+        Return sampled pose-vector positions over the full motion duration.
         """
         t_arr = np.linspace(0.0, self.dt_tot, n_samples)
         p_arr = np.array([self.pose(t) for t in t_arr])
@@ -43,7 +72,7 @@ class MultiPointVectorMotionProfile(ABC):
 
     def velocity_profile(self, n_samples: int = 100) -> tuple[NumpyArray, NumpyArray]:
         """
-        Returns the sampled velocity profile of the vector-valued path.
+        Return sampled pose-vector velocities over the full motion duration.
         """
         t_arr = np.linspace(0.0, self.dt_tot, n_samples)
         v_arr = np.array([self.velocity(t) for t in t_arr])
@@ -51,7 +80,7 @@ class MultiPointVectorMotionProfile(ABC):
 
     def acceleration_profile(self, n_samples: int = 100) -> tuple[NumpyArray, NumpyArray]:
         """
-        Returns the sampled acceleration profile of the vector-valued path.
+        Return sampled pose-vector accelerations over the full motion duration.
         """
         t_arr = np.linspace(0.0, self.dt_tot, n_samples)
         a_arr = np.array([self.acceleration(t) for t in t_arr])

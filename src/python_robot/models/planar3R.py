@@ -200,6 +200,31 @@ class Planar3R(SerialLinkManipulator):
         which_solver: IKSolverSpec = "LM",
         **kwargs
     ) -> NumpyArray:
+        """
+        Solve inverse kinematics for the planar 3R manipulator.
+
+        The planar robot constrains inverse kinematics to x-position,
+        y-position, and yaw orientation. Any user-provided ``mask`` keyword is
+        ignored so the solver always receives the planar mask
+        ``[1, 1, 0, 0, 0, 1]``.
+
+        Parameters
+        ----------
+        ee_frame : Frame
+            Desired end-effector pose.
+        ini_guess : Sequence[float], optional
+            Initial joint-coordinate guess for the numerical solver.
+        which_solver : IKSolverSpec, default = "LM"
+            Numerical inverse-kinematics solver used by the parent class.
+        **kwargs
+            Additional keyword arguments forwarded to the parent inverse
+            kinematics implementation, except for ``mask``.
+
+        Returns
+        -------
+        NumpyArray
+            Joint coordinates in radians.
+        """
         # A mask cannot be assigned twice: ignore possible mask in kwargs
         kwargs.pop("mask", None)
 

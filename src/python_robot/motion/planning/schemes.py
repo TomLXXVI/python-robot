@@ -1,3 +1,11 @@
+"""
+Motion scheme containers for joint-space and Cartesian-space trajectories.
+
+This module wraps sampled motion data in higher-level objects that can convert
+between joint space and Cartesian space, expose table views, calculate dynamics,
+and plot motion profiles or end-effector trajectories.
+"""
+
 from __future__ import annotations
 from typing import Sequence, Literal
 
@@ -40,6 +48,32 @@ class JointSpaceScheme:
         motion_profiles: Sequence[MultiPointMotionProfile],
         angle_unit: AngleUnit = "deg",
     ) -> None:
+        """
+        Create a sampled joint-space motion scheme.
+
+        Parameters
+        ----------
+        t_arr : NumpyArray
+            Sampled time moments.
+        q_arr : NumpyArray
+            Sampled joint positions ordered from base to tool.
+        qd_arr : NumpyArray
+            Sampled joint velocities ordered from base to tool.
+        qdd_arr : NumpyArray
+            Sampled joint accelerations ordered from base to tool.
+        target_frames : Sequence[Frame]
+            Cartesian end-effector frames used as motion targets.
+        dt_segments : Sequence[float]
+            Travel durations between successive target frames.
+        manipulator : SerialLinkManipulator
+            Manipulator for which the scheme was generated.
+        q_sets : NumpyArray
+            Target joint coordinates corresponding to ``target_frames``.
+        motion_profiles : Sequence[MultiPointMotionProfile]
+            Analytic per-joint profiles, if available.
+        angle_unit : AngleUnit, default = "deg"
+            Angle unit used when rendering table output.
+        """
         self._t_arr = t_arr
         self._q_arr = q_arr
         self._qd_arr = qd_arr
@@ -128,7 +162,13 @@ class JointSpaceScheme:
 
     def to_cartesian_space(self) -> CartesianSpaceScheme:
         """
-        Converts the joint-space scheme to Cartesian space.
+        Convert this joint-space scheme to Cartesian space.
+
+        Returns
+        -------
+        CartesianSpaceScheme
+            Cartesian scheme obtained by applying forward kinematics at each
+            sampled joint configuration.
         """
         return CartesianSpaceScheme.from_joint_space(self)
 
@@ -140,7 +180,21 @@ class JointSpaceScheme:
         ini_guess: Sequence[float] | None = None,
     ) -> JointSpaceScheme:
         """
-        Converts the Cartesian-space scheme to joint space.
+        Convert a Cartesian-space scheme to joint space.
+
+        Parameters
+        ----------
+        css : CartesianSpaceScheme
+            Cartesian scheme to convert.
+        manipulator : SerialLinkManipulator
+            Manipulator used for inverse kinematics and Jacobian mapping.
+        ini_guess : Sequence[float], optional
+            Initial inverse-kinematics guess for the first trajectory sample.
+
+        Returns
+        -------
+        JointSpaceScheme
+            Joint-space scheme sampled from the Cartesian trajectory.
         """
         return css.to_joint_space(manipulator, ini_guess)
 
@@ -205,11 +259,16 @@ class JointSpaceScheme:
 
     @property
     def tables(self) -> _JointSpaceTables:
+        """
+        Return formatted table views for the joint-space scheme.
+        """
         return self._tables
 
     @property
     def time_samples(self) -> NumpyArray:
-        """Returns the array of sampled time moments."""
+        """
+        Return the sampled time moments of the joint-space scheme.
+        """
         return self._t_arr
 
     @property
@@ -504,6 +563,19 @@ class JointSpaceScheme:
         return chart
 
     def plot_dynamics(self) -> LineChart:
+        """
+        Plot sampled joint torques or forces over time.
+
+        Returns
+        -------
+        LineChart
+            Chart containing one torque/force trace per manipulator joint.
+
+        Raises
+        ------
+        ConfigurationError
+            If the manipulator has no dynamic parameters.
+        """
         if self.manipulator.has_dynamics():
             tau_arr = self.dynamics()
             t_arr = tau_arr[:, 0]
@@ -612,6 +684,30 @@ class CartesianSpaceScheme:
         target_V_arr: NumpyArray | None = None,
         target_A_arr: NumpyArray | None = None,
     ) -> None:
+        """
+        Create a sampled Cartesian-space motion scheme.
+
+        Parameters
+        ----------
+        t_arr : NumpyArray
+            Sampled time moments.
+        traj_frames : list[Frame]
+            Sampled end-effector frames along the trajectory.
+        target_frames : Sequence[Frame]
+            Original Cartesian target frames.
+        dt_segments : Sequence[float]
+            Travel durations between successive target frames.
+        p_arr : NumpyArray, optional
+            Sampled pose vectors ``(x, y, z, rx, ry, rz)``.
+        V_arr : NumpyArray, optional
+            Sampled spatial velocities.
+        A_arr : NumpyArray, optional
+            Sampled spatial accelerations.
+        target_V_arr : NumpyArray, optional
+            Spatial velocities evaluated at the target times.
+        target_A_arr : NumpyArray, optional
+            Spatial accelerations evaluated at the target times.
+        """
         self._t_arr = t_arr
         self._traj_frames = traj_frames
 
@@ -764,12 +860,20 @@ class CartesianSpaceScheme:
 
     @property
     def tables(self) -> _CartesianSpaceTables:
+        """
+        Return formatted table views for the Cartesian-space scheme.
+        """
         return self._tables
 
     @property
     def trajectory_frames(self) -> list[Frame]:
         """
-        Returns the sampled end-effector frames along the Cartesian trajectory.
+        Return the sampled end-effector frames along the Cartesian trajectory.
+
+        Returns
+        -------
+        list[Frame]
+            Frames sampled at ``time_samples``.
         """
         return self._traj_frames
 
@@ -813,13 +917,20 @@ class CartesianSpaceScheme:
 
     @property
     def time_samples(self) -> NumpyArray:
-        """Returns the array of sampled time moments."""
+        """
+        Return the sampled time moments of the Cartesian-space scheme.
+        """
         return self._t_arr
 
     @property
     def poses(self) -> NumpyArray:
         """
-        Returns the array of sampled pose vectors.
+        Return the sampled Cartesian pose vectors.
+
+        Returns
+        -------
+        NumpyArray
+            Array with columns ``x, y, z, rx, ry, rz``.
         """
         if self._p_arr is not None:
             return self._p_arr
@@ -863,7 +974,12 @@ class CartesianSpaceScheme:
     @property
     def spatial_accelerations(self) -> NumpyArray:
         """
-        Returns the array of sampled spatial accelerations.
+        Return the sampled spatial accelerations.
+
+        Returns
+        -------
+        NumpyArray
+            Array with columns ``a_x, a_y, a_z, alpha_x, alpha_y, alpha_z``.
         """
         if self._A_arr is not None:
             return self._A_arr
@@ -1197,6 +1313,18 @@ class _CartesianToJointSpaceConverter:
         manipulator: SerialLinkManipulator,
         ini_guess: Sequence[float] | None = None,
     ) -> None:
+        """
+        Create a converter from Cartesian trajectory samples to joint samples.
+
+        Parameters
+        ----------
+        css : CartesianSpaceScheme
+            Cartesian scheme to convert.
+        manipulator : SerialLinkManipulator
+            Manipulator used for inverse kinematics and Jacobian mapping.
+        ini_guess : Sequence[float], optional
+            Initial inverse-kinematics guess for the first trajectory frame.
+        """
         self._css = css
         self._manipulator = manipulator
         self._ini_guess = ini_guess
@@ -1311,6 +1439,14 @@ class _CartesianTrajectoryPlotter:
     Helper class of CartesianMotionScheme to plot a Cartesian trajectory.
     """
     def __init__(self, cms: CartesianSpaceScheme) -> None:
+        """
+        Create a trajectory plotter for a Cartesian-space scheme.
+
+        Parameters
+        ----------
+        cms : CartesianSpaceScheme
+            Cartesian scheme whose trajectory should be plotted.
+        """
         self._cms = cms
 
     @staticmethod
@@ -1518,6 +1654,52 @@ class _CartesianTrajectoryPlotter:
     ) -> None:
         """
         Plot the Cartesian end-effector trajectory in 3D space.
+
+        Parameters
+        ----------
+        show_points : bool, default=True
+            If True, draw sampled end-effector positions as point markers.
+        show_path : bool, default=True
+            If True, draw line segments between successive trajectory points.
+        show_frames : bool, default=False
+            If True, draw some sampled end-effector frames along the trajectory.
+        show_target_path : bool, default=True
+            If True, draw line segments between successive target points.
+        show_target_points : bool, default=True
+            If True, draw end-effector target positions as point markers.
+        show_target_frames : bool, default=True
+            If True, draw target end-effector frames along the trajectory.
+        point_step : int, default=1
+            Draw every `point_step`-th point.
+        frame_step : int, default=10
+            Draw every `frame_step`-th frame if `show_frames` is True.
+        point_color : str, default="black"
+            Color of the trajectory points.
+        path_color : str, default="orange"
+            Color of the trajectory path.
+        target_point_color : str, default="blue"
+            Color of the target points.
+        target_path_color : str, default="blue"
+            Color of the target path.
+        point_size : float, default=8.0
+            Size of the point markers.
+        target_point_size : float, default=14.0
+            Size of the target point markers.
+        path_width : float, default=3.0
+            Width of the trajectory path.
+        target_path_width : float, default=2.0
+            Width of the target path.
+        frame_scale : float, default=0.2
+            Scale of the optional end-effector frames.
+        target_frame_scale : float, default=0.25
+            Scale of the optional end-effector target frames.
+        **kwargs
+            Additional keyword arguments passed to WorldScene.
+
+        Returns
+        -------
+        WorldScene
+            Scene containing the plotted trajectory.
         """
         scene = self._plot_trajectory(
             show_points=show_points,
@@ -1603,19 +1785,38 @@ class _JointSpaceTables:
         jss: JointSpaceScheme,
         angle_unit: str = "deg"
     ) -> None:
+        """
+        Create formatted table views for a joint-space scheme.
+
+        Parameters
+        ----------
+        jss : JointSpaceScheme
+            Joint-space scheme to render as tables.
+        angle_unit : str, default = "deg"
+            Unit used for revolute joint angles in textual tables.
+        """
         self._jss = jss
         self._angle_unit = angle_unit
 
     @property
     def angle_unit(self) -> str:
+        """
+        Return the angle unit used for revolute-joint table values.
+        """
         return self._angle_unit
 
     @angle_unit.setter
     def angle_unit(self, val: AngleUnit) -> None:
+        """
+        Set the angle unit used for revolute-joint table values.
+        """
         self._angle_unit = val
 
     @property
     def target_coordinates(self) -> str:
+        """
+        Return target joint coordinates as a formatted table string.
+        """
         _coordinates = self._jss.target_coordinates.copy()
         n_cols = _coordinates.shape[1]
         links = self._jss.manipulator.links
@@ -1637,6 +1838,9 @@ class _JointSpaceTables:
 
     @property
     def scheme(self) -> str:
+        """
+        Return the sampled joint-space scheme as a formatted table string.
+        """
         _scheme = self._jss.scheme.copy()
         links = self._jss.manipulator.links
 
@@ -1666,6 +1870,9 @@ class _JointSpaceTables:
 
     @property
     def dynamics(self) -> str:
+        """
+        Return sampled joint dynamics as a formatted table string.
+        """
         if self._jss.manipulator.has_dynamics():
             tau_arr = self._jss.dynamics()
             headers = ["time"]
@@ -1676,6 +1883,9 @@ class _JointSpaceTables:
 
     @property
     def dynamics_distribution(self) -> str:
+        """
+        Return the joint torque/force distribution as a formatted table string.
+        """
         if self._jss.manipulator.has_dynamics():
             distribution = self._jss.dynamics_distribution()
             headers = ["tau_min", "tau_max"]
@@ -1690,10 +1900,21 @@ class _CartesianSpaceTables:
         self,
         css: CartesianSpaceScheme,
     ) -> None:
+        """
+        Create formatted table views for a Cartesian-space scheme.
+
+        Parameters
+        ----------
+        css : CartesianSpaceScheme
+            Cartesian-space scheme to render as tables.
+        """
         self._css = css
 
     @property
     def scheme(self) -> str:
+        """
+        Return the sampled Cartesian-space scheme as a formatted table string.
+        """
         _scheme = self._css.scheme.copy()
         headers = ["time", "x", "y", "z", "alpha", "beta", "gamma"]
         table = array_to_table(_scheme, headers=headers)

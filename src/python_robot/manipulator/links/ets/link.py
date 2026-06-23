@@ -1,3 +1,10 @@
+"""
+Links defined by Elementary Transform Sequences.
+
+The module provides revolute and prismatic ETS links. Each link stores fixed
+elementary transforms and appends one variable transform for the joint axis.
+"""
+
 from typing import Literal
 
 from abc import ABC, abstractmethod
@@ -19,7 +26,7 @@ __all__ = ["RevoluteETSLink", "PrismaticETSLink"]
 
 class AbstractETSLink(AbstractLink, ABC):
     """
-    Defines a link using Elementary Transform Sequence (ETS).
+    Abstract base class for links defined by an Elementary Transform Sequence.
     """
     def __init__(
         self, 
@@ -28,6 +35,20 @@ class AbstractETSLink(AbstractLink, ABC):
         joint_limits: tuple[float, float] | None = None,
         dynamics: LinkDynamicParams | None = None,
     ) -> None:
+        """
+        Create an ETS link with one variable transform.
+
+        Parameters
+        ----------
+        axis : {"x", "y", "z"}
+            Axis of the variable joint transform.
+        ET_params : LinkETParams
+            Fixed and variable elementary-transform parameters.
+        joint_limits : tuple[float, float], optional
+            Lower and upper limits of the variable joint coordinate.
+        dynamics : LinkDynamicParams, optional
+            Dynamic parameters assigned to the link.
+        """
         self._axis = axis
         self._ET_params = ET_params
 
@@ -67,6 +88,9 @@ class AbstractETSLink(AbstractLink, ABC):
 
 
 class RevoluteETSLink(AbstractETSLink, AbstractRevoluteLink):
+    """
+    Revolute link defined by fixed ETS transforms and a variable rotation.
+    """
     
     def __init__(
         self,
@@ -140,6 +164,9 @@ class RevoluteETSLink(AbstractETSLink, AbstractRevoluteLink):
 
 
 class PrismaticETSLink(AbstractETSLink, AbstractPrismaticLink):
+    """
+    Prismatic link defined by fixed ETS transforms and a variable translation.
+    """
     
     def __init__(
         self,

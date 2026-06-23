@@ -1,3 +1,7 @@
+"""
+Modified Denavit-Hartenberg link classes.
+"""
+
 from roboticstoolbox import RevoluteMDH, PrismaticMDH
 
 from .link import AbstractRevoluteDHLink, AbstractPrismaticDHLink

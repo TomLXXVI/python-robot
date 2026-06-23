@@ -29,7 +29,11 @@ __all__ = [
 @dataclass(frozen=True)
 class MPParams(ABC):
     """
-    Abstract base class for holding motion profile parameters.
+    Abstract base class for Cartesian straight-line time-scaling parameters.
+
+    Subclasses select the one-dimensional motion profile used to interpolate
+    along the normalized path coordinate from the initial frame to the final
+    frame.
     """
     pass
 
@@ -63,7 +67,10 @@ class TriPhaseMPParams(MPParams, ABC):
 @dataclass(frozen=True)
 class Trapezoidal(TriPhaseMPParams):
     """
-    Concrete dataclass for holding trapezoidal motion profile parameters.
+    Parameters for trapezoidal time-scaling of a Cartesian straight-line path.
+
+    The resulting profile limits velocity and acceleration while moving the
+    normalized path coordinate from 0 to 1.
     """
     pass
 
@@ -71,7 +78,10 @@ class Trapezoidal(TriPhaseMPParams):
 @dataclass(frozen=True)
 class SCurved(TriPhaseMPParams):
     """
-    Concrete dataclass for holding S-curved motion profile parameters.
+    Parameters for S-curved time-scaling of a Cartesian straight-line path.
+
+    The resulting profile limits velocity and acceleration with smoother phase
+    transitions than a trapezoidal profile.
     """
     pass
 
@@ -106,7 +116,10 @@ class PolyMPParams(MPParams, ABC):
 @dataclass(frozen=True)
 class Cubic(PolyMPParams):
     """
-    Concrete dataclass for holding cubic motion profile parameters.
+    Parameters for cubic polynomial time-scaling of a Cartesian path.
+
+    The profile interpolates the normalized path coordinate with boundary
+    velocity constraints.
     """
     pass
 
@@ -114,7 +127,10 @@ class Cubic(PolyMPParams):
 @dataclass(frozen=True)
 class Quintic(PolyMPParams):
     """
-    Concrete dataclass for holding quintic motion profile parameters.
+    Parameters for quintic polynomial time-scaling of a Cartesian path.
+
+    The profile interpolates the normalized path coordinate with boundary
+    velocity and acceleration constraints.
     """
     pass
 

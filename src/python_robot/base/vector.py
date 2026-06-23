@@ -1,3 +1,11 @@
+"""
+Vector-like robotics quantities backed by NumPy arrays.
+
+The module defines semantic wrappers for vectors, axes, velocities,
+accelerations, forces, torques, and wrenches. These objects participate in NumPy
+operations while keeping public APIs explicit about physical meaning.
+"""
+
 from __future__ import annotations
 import typing
 
@@ -80,24 +88,72 @@ class _ArrayBacked(NDArrayOperatorsMixin):
 
     @property
     def shape(self) -> tuple[int, ...]:
+        """
+        Return the shape of the underlying NumPy array.
+
+        Returns
+        -------
+        tuple[int, ...]
+            Array shape.
+        """
         return self._array.shape
 
     @property
     def ndim(self) -> int:
+        """
+        Return the number of dimensions of the underlying NumPy array.
+
+        Returns
+        -------
+        int
+            Number of array dimensions.
+        """
         return self._array.ndim
 
     @property
     def size(self) -> int:
+        """
+        Return the number of elements in the underlying NumPy array.
+
+        Returns
+        -------
+        int
+            Number of array elements.
+        """
         return self._array.size
 
     @property
     def dtype(self) -> np.dtype:
+        """
+        Return the NumPy data type of the underlying array.
+
+        Returns
+        -------
+        np.dtype
+            Array data type.
+        """
         return self._array.dtype
 
     def copy(self) -> NumpyArray:
+        """
+        Return a copy of the underlying NumPy array.
+
+        Returns
+        -------
+        NumpyArray
+            Copied array data.
+        """
         return self._array.copy()
 
     def tolist(self) -> list[float]:
+        """
+        Return the vector data as a Python list.
+
+        Returns
+        -------
+        list[float]
+            Vector components.
+        """
         return self._array.tolist()
 
 
@@ -360,7 +416,7 @@ class PrincipalAxis:
 
 class TranslationalVelocity(Vector):
     """
-    Represents a translational velocity vector (v_x, v_y, v_z).
+    Translational velocity vector in Cartesian components.
     """
     pass
 
@@ -440,7 +496,7 @@ class AngularVelocity(Vector):
 
 class TranslationalAcceleration(Vector):
     """
-    Represents a translational acceleration vector (a_x, a_y, a_z).
+    Translational acceleration vector in Cartesian components.
     """
     pass
 
@@ -636,6 +692,14 @@ class SpatialAcceleration(_ArrayBacked):
         acceleration of the frame.
     """
     def __init__(self, coords: ArrayLike6) -> None:
+        """
+        Create a spatial acceleration vector.
+
+        Parameters
+        ----------
+        coords : ArrayLike6
+            Six-element vector ``(a_x, a_y, a_z, alpha_x, alpha_y, alpha_z)``.
+        """
         self.coords = coords
         self._array: NumpyArray = np.asarray(self.coords, dtype=float)
         self._a = TranslationalAcceleration(self._array[0:3])
@@ -741,7 +805,7 @@ class SpatialAcceleration(_ArrayBacked):
 
 class Force(Vector):
     """
-    Represents a force vector (F_x, F_y, F_z).
+    Force vector in Cartesian components.
     """
     pass
 
@@ -787,6 +851,14 @@ class Wrench(_ArrayBacked):
         coordinates represent the torque vector.
     """
     def __init__(self, coords: ArrayLike6) -> None:
+        """
+        Create a wrench vector.
+
+        Parameters
+        ----------
+        coords : ArrayLike6
+            Six-element vector ``(F_x, F_y, F_z, T_x, T_y, T_z)``.
+        """
         self.coords = coords
         self._array: NumpyArray = np.asarray(self.coords, dtype=float)
         self._F = Force(self._array[0:3])

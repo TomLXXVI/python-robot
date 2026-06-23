@@ -1,3 +1,7 @@
+"""
+Small containers for updatable PyVista scene artists.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -27,7 +31,9 @@ class FrameArtist:
 @dataclass
 class LinkArtist:
     """
-    Container for the PyVista object that represents a links.
+    Container for the PyVista object that represents a link segment.
+
+    The mesh endpoints are updated in place during kinematic-chain animation.
     """
     mesh: pv.PolyData
 

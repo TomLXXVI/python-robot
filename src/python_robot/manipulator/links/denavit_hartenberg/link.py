@@ -1,3 +1,10 @@
+"""
+Abstract Denavit-Hartenberg link classes.
+
+Concrete subclasses select the standard or modified Robotics Toolbox DH link
+constructor while sharing parameter handling for revolute and prismatic joints.
+"""
+
 from typing import Type
 
 from abc import ABC
@@ -14,6 +21,9 @@ from ..link import (
 
 
 class AbstractDHLink(AbstractLink, ABC):
+    """
+    Abstract base class for links defined with DH parameters.
+    """
 
     def __init__(
         self,
@@ -21,10 +31,17 @@ class AbstractDHLink(AbstractLink, ABC):
         rtb_link: RevoluteDH | RevoluteMDH | PrismaticDH | PrismaticMDH,
         dynamics: LinkDynamicParams | None = None,
     ) -> None:
+        """
+        Create a DH link wrapper.
+        """
         super().__init__(link_length, rtb_link, dynamics)
 
 
 class AbstractRevoluteDHLink(AbstractDHLink, AbstractRevoluteLink):
+    """
+    Abstract base class for standard or modified revolute DH links.
+    """
+
     _rtb_link_constructor: Type[RevoluteDH | RevoluteMDH]
 
     def __init__(
@@ -71,6 +88,10 @@ class AbstractRevoluteDHLink(AbstractDHLink, AbstractRevoluteLink):
 
 
 class AbstractPrismaticDHLink(AbstractDHLink, AbstractPrismaticLink):
+    """
+    Abstract base class for standard or modified prismatic DH links.
+    """
+
     _rtb_link_constructor: Type[PrismaticDH | PrismaticMDH]
 
     def __init__(
