@@ -103,7 +103,7 @@ class JointSpaceMotion:
     Convert Cartesian targets into sampled joint-space motion.
 
     The class solves inverse kinematics for each target frame, builds a
-    multi-point profile for each joint, and samples joint positions, velocities,
+    multipoint profile for each joint, and samples joint positions, velocities,
     and accelerations over the complete movement.
     """
 

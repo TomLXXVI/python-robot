@@ -1482,6 +1482,7 @@ class _CartesianTrajectoryPlotter:
                 p2=p2,
                 color=color,
                 line_width=line_width,
+                opacity=1.0
             )
 
     def _plot_trajectory(
