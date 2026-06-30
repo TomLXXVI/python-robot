@@ -8,7 +8,7 @@ import numpy as np
 
 from python_robot.manipulator import URDFManipulator
 from python_robot.base import Frame
-from python_robot.motion import JointSpaceScheme, MultiPointMotionProfileType, IKMask, IKTarget
+from python_robot.motion import JointTrajectory, MultiPointMotionProfileType, IKMask, IKTarget
 
 
 # Instantiate the UR3 robot arm model. Set global plot and animation options.
@@ -83,7 +83,7 @@ targets = [
 # with parabolic blends between path points as indicated by
 # ``mp_type=MultiPointMotionProfileType.LINEAR```. All parabolic blends are
 # calculated with the same blend acceleration.
-joint_scheme = JointSpaceScheme.create(
+joint_trajectory = JointTrajectory.create(
     targets=targets,
     dt_segments=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
     manipulator=ur3,

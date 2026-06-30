@@ -1,7 +1,7 @@
 """
 Swift-based visualization for URDF-backed manipulators.
 
-The public ``SwiftSimulator`` class bridges python-robot motion schemes to the
+The public ``SwiftSimulator`` class bridges python-robot trajectorys to the
 Robotics Toolbox Swift backend. Motion planning remains the responsibility of
 python-robot; Swift is used only as a rich 3D renderer for the underlying RTB
 ``ERobot`` that was created from the URDF/xacro model.
@@ -30,7 +30,7 @@ from python_robot.manipulator import URDFManipulator
 
 if TYPE_CHECKING:
     from python_robot.base.types import NumpyArray
-    from python_robot.motion import JointSpaceScheme
+    from python_robot.motion import JointTrajectory
 
 
 __all__ = ["SwiftSimulator"]
@@ -61,7 +61,7 @@ class SwiftSimulator:
         robot : URDFManipulator | None, default=None
             Manipulator whose Robotics Toolbox ``ERobot`` should be visualized.
             If omitted, ``play_joint_scheme`` will take the robot from the given
-            joint-space scheme.
+            joint-space trajectory.
         """
         if robot is not None:
             if not isinstance(robot, URDFManipulator):
@@ -118,22 +118,22 @@ class SwiftSimulator:
 
     def play_joint_scheme(
         self,
-        joint_scheme: JointSpaceScheme,
+        joint_scheme: JointTrajectory,
         step: int = 1,
         hold: bool = False,
         speed: float = 1.0,
         controls: bool = False,
     ) -> None:
         """
-        Play a python-robot joint-space motion scheme in Swift.
+        Play a python-robot joint-space trajectory in Swift.
 
-        ``JointSpaceScheme`` contains the planned robot motion. Swift does not
+        ``JointTrajectory`` contains the planned robot motion. Swift does not
         compute that motion; it only visualizes the sampled joint positions.
 
         Parameters
         ----------
-        joint_scheme : JointSpaceScheme
-            Motion scheme whose manipulator must be a ``URDFManipulator``.
+        joint_scheme : JointTrajectory
+            Trajectory whose manipulator must be a ``URDFManipulator``.
         step : int, default=1
             Use every ``step``-th sample for playback. This is useful because
             Swift animation can become sluggish when every dense planning sample

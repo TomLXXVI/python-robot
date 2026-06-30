@@ -11,7 +11,7 @@ trajectories, dynamics helpers, and PyVista/Swift visualisation.
 
 `python-robot` builds on Peter Corke's robotics ecosystem, in particular
 [`petercorke/RVC3-python`](https://github.com/petercorke/RVC3-python), and adds
-a package-specific layer for robot modelling, motion schemes, and visualisation.
+a package-specific layer for robot modelling, trajectorys, and visualisation.
 
 ## What It Offers
 
@@ -25,7 +25,7 @@ a package-specific layer for robot modelling, motion schemes, and visualisation.
 - Ready-to-use models such as `Planar3R` and `XYZGantry`.
 - Joint-space and Cartesian-space motion planning with cubic profiles, linear
   paths with parabolic blends, and 6D pose-vector trajectories.
-- Table and plotting helpers for inspecting motion schemes, joint profiles,
+- Table and plotting helpers for inspecting trajectorys, joint profiles,
   Cartesian poses, velocities, accelerations, and joint loads.
 - PyVista-based 3D plotting and animation for frames, links, kinematic chains,
   tool frames, and end-effector paths.
@@ -94,7 +94,7 @@ Plan a joint-space motion through Cartesian target frames:
 ```python
 from python_robot.base import Frame
 from python_robot.models import Planar3R
-from python_robot.motion import JointSpaceScheme
+from python_robot.motion import JointTrajectory
 
 robot = Planar3R(l1=1.0, l2=1.0)
 
@@ -104,15 +104,15 @@ targets = [
     Frame((1.0, 0.4, 0.0), (0.0, 0.0, 0.0)),
 ]
 
-scheme = JointSpaceScheme.create(
+trajectory = JointTrajectory.create(
     targets=targets,
     dt_segments=(2.0, 2.0),
     manipulator=robot,
     num_t_samples=100,
 )
 
-print(scheme.tables.target_coordinates)
-print(scheme.tables.scheme)
+print(trajectory.tables.target_coordinates)
+print(trajectory.tables.scheme)
 ```
 
 Visualise a manipulator:
@@ -165,7 +165,7 @@ The `python_robot.motion` package supports:
 - single Cartesian straight-line moves,
 - multi-segment Cartesian paths with parabolic blends,
 - joint-space motion generated from Cartesian targets,
-- conversion between joint-space and Cartesian-space schemes,
+- conversion between joint-space and Cartesian-space trajectorys,
 - sampled position, velocity, acceleration, and dynamics tables,
 - motion plots for joint and Cartesian trajectories.
 
@@ -174,7 +174,7 @@ The `python_robot.motion` package supports:
 The `python_robot.visualisation` package provides PyVista scenes, artists, and
 animators. It can draw coordinate frames, links, point markers, tool frames,
 end-effector paths, and animated kinematic chains. If Swift is installed, the
-optional `SwiftSimulator` can play joint-space schemes in Swift.
+optional `SwiftSimulator` can play joint-space trajectorys in Swift.
 
 ## Included Demos
 
@@ -182,7 +182,7 @@ The `demos` folder contains notebooks and scripts that demonstrate:
 
 - frame transformations,
 - forward kinematics,
-- motion schemes,
+- trajectorys,
 - UR3 motion planning from a URDF/xacro model,
 - Swift playback of a planned UR3 joint-space trajectory.
 
@@ -209,7 +209,7 @@ python_robot.models
     Predefined manipulators such as Planar3R and XYZGantry.
 
 python_robot.motion
-    Joint-space and Cartesian-space motion profiles and schemes.
+    Joint-space and Cartesian-space motion profiles and trajectories.
 
 python_robot.visualisation
     PyVista and optional Swift visualisation tools.
