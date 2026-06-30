@@ -14,6 +14,8 @@ import numpy as np
 from automation_motion.base.types import NumpyArray
 from automation_motion.charts import CompositeLineChart
 
+from ..joint_space import JointTrajectory
+
 from ...base import Frame, SpatialVelocity
 from ...manipulator import SerialLinkManipulator, ConfigurationError
 from ...visualisation.core import WorldScene
