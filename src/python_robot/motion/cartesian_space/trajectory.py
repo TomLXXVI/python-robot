@@ -7,7 +7,7 @@ feed sampled data into ``CartesianTrajectory``.
 """
 
 from __future__ import annotations
-from typing import Sequence, Literal
+from typing import TYPE_CHECKING, Literal, Sequence
 
 import numpy as np
 
@@ -18,10 +18,12 @@ from ..joint_space import JointTrajectory
 
 from ...base import Frame, SpatialVelocity
 from ...manipulator import SerialLinkManipulator, ConfigurationError
-from ...visualisation.core import WorldScene
 from ...utils import array_to_table
 from ...utils.introspection import get_valid_keyword_parameters
 from .multi_line import CartesianMultiLineMotion
+
+if TYPE_CHECKING:
+    from ...visualisation.core import WorldScene
 
 __all__ = ["CartesianTrajectory"]
 
@@ -812,6 +814,22 @@ class _CartesianTrajectoryPlotter:
 
     @staticmethod
     def _create_scene(**kwargs) -> WorldScene:
+        """
+        Create the PyVista-backed world scene used by trajectory plots.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments forwarded to ``WorldScene``. The optional
+            ``world_frame_scale`` keyword controls the size of the world frame.
+
+        Returns
+        -------
+        WorldScene
+            Scene initialized with a grid and world frame.
+        """
+        from ...visualisation.core import WorldScene
+
         world_frame_scale = kwargs.pop("world_frame_scale", 1.0)
 
         scene_params = get_valid_keyword_parameters(WorldScene.__init__, exclude={"self"})

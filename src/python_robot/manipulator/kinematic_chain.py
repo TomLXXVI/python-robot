@@ -797,11 +797,21 @@ class KinematicChain(AbstractKinematicChain):
         joint_torques = J.T @ W_ee_arr
         return joint_torques
 
-    def __str__(self):
-        return f"({''.join([
-            "R" if link.is_revolute 
-            else "P" for link in self._links
-        ])})"
+    def __str__(self) -> str:
+        """
+        Return the joint-type signature of the kinematic chain.
+
+        Returns
+        -------
+        str
+            Compact representation with ``R`` for revolute links and ``P`` for
+            prismatic links, for example ``"(RRP)"``.
+        """
+        joint_types = "".join(
+            "R" if link.is_revolute else "P"
+            for link in self._links
+        )
+        return f"({joint_types})"
 
     def _create_viewer(
         self,
