@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "python-robot"
 version = "0.1.0"
-description = "package about robotics"
+description = "Robotics package for frames, transformations, manipulators, motion planning, and visualization."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 
