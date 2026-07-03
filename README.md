@@ -35,19 +35,23 @@ a package-specific layer for robot modelling, trajectorys, and visualisation.
 
 The package requires Python `>=3.10,<3.13`.
 
-From this repository, install the local dependency package first and then
-install `python-robot`:
+If you are starting from GitHub, first clone the workspace, create a virtual
+environment, and activate it. The root `python-automation` README shows those
+steps in detail.
+
+From the `python-automation` repository root, install the local dependency
+package first and then install `python-robot`:
 
 ```bash
-pip install -e ../automation-motion
-pip install -e .
+python -m pip install -e packages/automation-motion
+python -m pip install -e packages/python-robot
 ```
 
-Or, from the repository root:
+If you are already inside `packages/python-robot`, use:
 
 ```bash
-pip install -e packages/automation-motion
-pip install -e packages/python-robot
+python -m pip install -e ../automation-motion
+python -m pip install -e .
 ```
 
 Main runtime dependencies include `numpy`, `spatialmath`, Peter Corke's
