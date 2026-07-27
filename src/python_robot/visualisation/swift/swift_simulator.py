@@ -22,7 +22,7 @@ from queue import Empty
 
 import numpy as np
 
-from roboticstoolbox import ERobot
+from python_robot._roboticstoolbox import ERobot
 from roboticstoolbox.backends.swift import Swift
 from swift import Button, Slider
 

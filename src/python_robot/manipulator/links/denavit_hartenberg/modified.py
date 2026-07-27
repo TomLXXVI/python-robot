@@ -2,7 +2,7 @@
 Modified Denavit-Hartenberg link classes.
 """
 
-from roboticstoolbox import RevoluteMDH, PrismaticMDH
+from python_robot._roboticstoolbox import PrismaticMDH, RevoluteMDH
 
 from .link import AbstractRevoluteDHLink, AbstractPrismaticDHLink
 

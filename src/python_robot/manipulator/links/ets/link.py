@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from roboticstoolbox import ET, ETS
+from python_robot._roboticstoolbox import ET, ETS
 
 from ..link import (
     AbstractLink,

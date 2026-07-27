@@ -2,7 +2,7 @@
 Standard Denavit-Hartenberg link classes.
 """
 
-from roboticstoolbox import RevoluteDH, PrismaticDH
+from python_robot._roboticstoolbox import PrismaticDH, RevoluteDH
 
 from .link import AbstractRevoluteDHLink, AbstractPrismaticDHLink
 

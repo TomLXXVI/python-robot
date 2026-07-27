@@ -9,8 +9,7 @@ from abc import ABC
 
 import numpy as np
 from spatialmath import SE3
-from roboticstoolbox import ET, ETS
-from roboticstoolbox import Link as RTBLink
+from python_robot._roboticstoolbox import ET, ETS, Link as RTBLink
 
 from ....base.types import ArrayLike3
 from ....base import Axis, Vector

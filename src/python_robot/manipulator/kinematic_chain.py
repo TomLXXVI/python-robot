@@ -15,7 +15,7 @@ from copy import deepcopy
 
 import numpy as np
 from spatialmath import SE3
-from roboticstoolbox import ETS, ERobot
+from python_robot._roboticstoolbox import ERobot, ETS
 
 from python_robot.base.types import NumpyArray, ArrayLike6
 from python_robot.base import Frame, WREF_FRAME, SpatialVelocity, Wrench, Vector

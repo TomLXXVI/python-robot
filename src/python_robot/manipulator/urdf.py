@@ -13,9 +13,7 @@ from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
-from roboticstoolbox import ERobot, ETS
-from roboticstoolbox import Link as RTBLink
-from roboticstoolbox.tools import URDF
+from python_robot._roboticstoolbox import ERobot, ETS, Link as RTBLink, URDF
 from spatialmath import SE3
 
 from python_robot.base import Frame

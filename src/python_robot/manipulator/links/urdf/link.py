@@ -7,7 +7,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 import numpy as np
-from roboticstoolbox import Link as RTBLink
+from python_robot._roboticstoolbox import Link as RTBLink
 
 from ..link import AbstractLink, LinkDynamicParams
 

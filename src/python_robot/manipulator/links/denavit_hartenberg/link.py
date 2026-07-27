@@ -9,7 +9,7 @@ from typing import Type
 
 from abc import ABC
 
-from roboticstoolbox import (
+from python_robot._roboticstoolbox import (
     RevoluteDH, RevoluteMDH,
     PrismaticDH, PrismaticMDH
 )

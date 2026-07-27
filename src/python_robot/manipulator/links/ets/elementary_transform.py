@@ -3,7 +3,7 @@ Elementary-transform parameters and factory functions for ETS links.
 """
 
 from dataclasses import dataclass
-from roboticstoolbox import ET
+from python_robot._roboticstoolbox import ET
 
 from python_robot.base.types import AngleUnit
 

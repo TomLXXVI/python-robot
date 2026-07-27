@@ -13,9 +13,9 @@ from typing import Sequence
 
 import numpy as np
 
+from ....base import SpatialVelocity, SpatialAcceleration
 from automation_motion.base.types import NumpyArray
 from automation_motion.charts import CompositeLineChart
-from ....base import SpatialVelocity, SpatialAcceleration
 
 __all__ = [
     "PoseVectorProfile",

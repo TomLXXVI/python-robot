@@ -11,8 +11,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import numpy as np
-from roboticstoolbox import Link as RTBLink
-from roboticstoolbox import ETS
+from python_robot._roboticstoolbox import ETS, Link as RTBLink
 
 from ...base.types import NumpyArray
 from ...base import Frame
