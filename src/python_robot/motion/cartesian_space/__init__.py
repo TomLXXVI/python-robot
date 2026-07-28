@@ -9,6 +9,7 @@ from .multi_line import *
 __all__ = [
     "CartesianTrajectory",
     "CartesianLineMotion",
+    "BlendedCartesianMotion",
     "CartesianMultiLineMotion",
     "TimeScalingParams",
     "TriPhaseTimeScalingParams",
@@ -17,6 +18,9 @@ __all__ = [
     "SCurved",
     "Cubic",
     "Quintic",
+    "VectorProfile",
+    "VectorProfileSegment",
+    "BlendedVectorProfile",
     "PoseVectorProfile",
     "PoseProfileSegment",
     "BlendedPoseVectorProfile",

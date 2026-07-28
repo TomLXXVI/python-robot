@@ -18,13 +18,16 @@ from automation_motion.base.types import NumpyArray
 from automation_motion.charts import CompositeLineChart
 
 __all__ = [
+    "VectorProfile",
+    "VectorProfileSegment",
+    "BlendedVectorProfile",
     "PoseVectorProfile",
     "PoseProfileSegment",
     "BlendedPoseVectorProfile",
 ]
 
 
-class PoseVectorProfile(ABC):
+class VectorProfile(ABC):
     """
     Abstract interface for vector-valued multipoint motion profiles.
 
@@ -356,9 +359,9 @@ class PoseVectorProfile(ABC):
 
 
 @dataclass
-class PoseProfileSegment:
+class VectorProfileSegment:
     """
-    Represents a piece of a 6-dimensional multisegment path.
+    Represent one constant-acceleration piece of a vector-valued path.
 
     A path piece is either a parabolic blend or a linear piece. Each piece has
     vectorial kinematic time-functions for position, velocity, and
@@ -400,22 +403,18 @@ class PoseProfileSegment:
         return self.a
 
 
-class BlendedPoseVectorProfile(PoseVectorProfile):
+class BlendedVectorProfile(VectorProfile):
     """
-    Builds a multisegment path in time which is composed of linear segments
-    interconnected by parabolic blends.
+    Build a vector-valued path from linear segments and parabolic blends.
 
-    It is intended for motion variables that are naturally represented as
-    vectors, like pose vectors of the form
+    The profile accepts path points of any fixed dimension. For Cartesian
+    robot motion these are commonly six-dimensional pose vectors of the form
 
         [x, y, z, rx, ry, rz]
 
-    where [rx, ry, rz] is an angle-axis vector, representing the orientation of
-    a frame.
-
-    The blend times are specified explicitly. This is useful when all vector
-    components must share the same blend time, as is the case for Cartesian
-    straight-line motion.
+    The spatial-velocity and spatial-acceleration helpers require this
+    six-dimensional Cartesian representation. They remain here temporarily
+    for backward compatibility and will move to the Cartesian motion layer.
 
     Attributes
     ----------
@@ -429,7 +428,7 @@ class BlendedPoseVectorProfile(PoseVectorProfile):
     segment_velocities: NumpyArray
         Two-dimensional array with the constant velocity vector of each linear
         segment.
-    pieces: list[PoseProfileSegment]
+    pieces: list[VectorProfileSegment]
         List of the pieces that make up the vectorial multisegment path.
     """
     def __init__(
@@ -439,7 +438,7 @@ class BlendedPoseVectorProfile(PoseVectorProfile):
         dt_blends: float | Sequence[float],
     ) -> None:
         """
-        Creates a BlendedPoseVectorProfile object.
+        Create a blended vector profile.
 
         Parameters
         ----------
@@ -503,7 +502,7 @@ class BlendedPoseVectorProfile(PoseVectorProfile):
 
         self._validate_blend_times()
 
-        self.pieces: list[PoseProfileSegment] = []
+        self.pieces: list[VectorProfileSegment] = []
         self._build_pieces()
 
     def _calc_knot_times(self) -> NumpyArray:
@@ -615,7 +614,7 @@ class BlendedPoseVectorProfile(PoseVectorProfile):
         if dt <= 0.0:
             return
 
-        piece = PoseProfileSegment(
+        piece = VectorProfileSegment(
             t0=t0,
             dt=dt,
             x0=x0,
@@ -724,7 +723,7 @@ class BlendedPoseVectorProfile(PoseVectorProfile):
 
         self.pieces.sort(key=lambda piece: piece.t0)
 
-    def _locate_piece(self, t: float) -> PoseProfileSegment:
+    def _locate_piece(self, t: float) -> VectorProfileSegment:
         """
         Locates the path piece that corresponds to the given time moment.
         """
@@ -781,3 +780,9 @@ class BlendedPoseVectorProfile(PoseVectorProfile):
         pdd = piece.acceleration(t)
         A = SpatialAcceleration.from_pose(p, pd, pdd)
         return np.asarray(A, dtype=float)
+
+
+# Backward-compatible names. These can be removed in a later major release.
+PoseVectorProfile = VectorProfile
+PoseProfileSegment = VectorProfileSegment
+BlendedPoseVectorProfile = BlendedVectorProfile

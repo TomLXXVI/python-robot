@@ -798,7 +798,7 @@ class SpatialAcceleration(_ArrayBacked):
         J = AngularVelocity.jacobian(r)
         J_dot = AngularAcceleration.jacobian_dot(r, r_dot)
 
-        alpha = J @ r_ddot + J_dot * r_dot
+        alpha = J @ r_ddot + J_dot @ r_dot
         A = np.concatenate((a, alpha))
         return SpatialAcceleration(A)
 

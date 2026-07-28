@@ -20,7 +20,7 @@ from ...base import Frame, SpatialVelocity
 from ...manipulator import SerialLinkManipulator, ConfigurationError
 from ...utils import array_to_table
 from ...utils.introspection import get_valid_keyword_parameters
-from .multi_line import CartesianMultiLineMotion
+from .multi_line import BlendedCartesianMotion
 
 if TYPE_CHECKING:
     from ...visualisation.core import WorldScene
@@ -85,60 +85,141 @@ class CartesianTrajectory:
         self._tables = _CartesianSpaceTables(self)
 
     @classmethod
-    def create(
+    def from_motion(
         cls,
-        target_frames: Sequence[Frame],
-        dt_segments: Sequence[float],
-        dt_blends: float | Sequence[float] = 0.1,
-        num_t_samples: int = 100
+        motion: BlendedCartesianMotion,
+        sample_count: int = 100,
     ) -> CartesianTrajectory:
         """
-        Creates a smooth Cartesian straight-line path through multiple 3D poses 
-        of a frame.
+        Sample continuous Cartesian motion into a trajectory.
 
         Parameters
         ----------
-        target_frames: Sequence[Frame]
-            Sequence of target frames through which the Cartesian path is defined.
-        dt_segments: Sequence[float]
-            Sequence with the travel durations of each segment between two
-            successive target frames.
-        dt_blends: float | Sequence[float]
-            Single blend time or sequence of blend times at the target frames.
-        num_t_samples: int, default = 100
-            Number of time samples used to generate the trajectory.
+        motion : BlendedCartesianMotion
+            Continuous Cartesian motion to sample.
+        sample_count : int, default=100
+            Number of uniformly distributed time samples.
 
         Returns
         -------
         CartesianTrajectory
-        """
-        cm = CartesianMultiLineMotion(
-            target_frames, dt_segments,
-            dt_blends, num_t_samples
-        )
-        t_arr, traj_frames = cm.trajectory()
-        _, p_arr, V_arr, A_arr = cm.motion_samples
+            Sampled Cartesian trajectory.
 
-        target_times = np.concatenate(([0.0], np.cumsum(dt_segments)))
+        Raises
+        ------
+        ValueError
+            If ``sample_count`` is smaller than two.
+        """
+        if sample_count < 2:
+            raise ValueError("sample_count must be at least 2.")
+
+        t_arr = np.linspace(0.0, motion.duration, sample_count)
+        p_arr = np.array([
+            motion.pose_vector_at(time)
+            for time in t_arr
+        ])
+        traj_frames = [
+            Frame.from_pose_vector(pose_vector)
+            for pose_vector in p_arr
+        ]
+        V_arr = np.array([
+            motion.spatial_velocity_at(time)
+            for time in t_arr
+        ])
+        A_arr = np.array([
+            motion.spatial_acceleration_at(time)
+            for time in t_arr
+        ])
+
         target_V_arr = np.array([
-            cm.motion_profile.spatial_velocity(t)
-            for t in target_times
+            motion.spatial_velocity_at(time)
+            for time in motion.target_times
         ])
         target_A_arr = np.array([
-            cm.motion_profile.acceleration(t)
-            for t in target_times
+            motion.spatial_acceleration_at(time)
+            for time in motion.target_times
         ])
 
         return cls(
             t_arr=t_arr,
             traj_frames=traj_frames,
-            target_frames=target_frames,
-            dt_segments=dt_segments,
+            target_frames=motion.target_frames,
+            dt_segments=motion.segment_durations,
             p_arr=p_arr,
             V_arr=V_arr,
             A_arr=A_arr,
             target_V_arr=target_V_arr,
             target_A_arr=target_A_arr,
+        )
+
+    @classmethod
+    def from_targets(
+        cls,
+        target_frames: Sequence[Frame],
+        segment_durations: Sequence[float],
+        blend_durations: float | Sequence[float] = 0.1,
+        sample_count: int = 100,
+    ) -> CartesianTrajectory:
+        """
+        Plan and sample blended Cartesian motion through target frames.
+
+        Parameters
+        ----------
+        target_frames : Sequence[Frame]
+            Frames through which the Cartesian path is defined.
+        segment_durations : Sequence[float]
+            Travel durations between successive target frames.
+        blend_durations : float | Sequence[float], default=0.1
+            Blend duration at every target frame, or one shared duration.
+        sample_count : int, default=100
+            Number of uniformly distributed trajectory samples.
+
+        Returns
+        -------
+        CartesianTrajectory
+            Sampled Cartesian trajectory.
+        """
+        motion = BlendedCartesianMotion(
+            target_frames=target_frames,
+            segment_durations=segment_durations,
+            blend_durations=blend_durations,
+        )
+        return cls.from_motion(motion, sample_count=sample_count)
+
+    @classmethod
+    def create(
+        cls,
+        target_frames: Sequence[Frame],
+        dt_segments: Sequence[float],
+        dt_blends: float | Sequence[float] = 0.1,
+        num_t_samples: int = 100,
+    ) -> CartesianTrajectory:
+        """
+        Create a trajectory using the former factory parameter names.
+
+        New code should use :meth:`from_targets`.
+
+        Parameters
+        ----------
+        target_frames : Sequence[Frame]
+            Frames through which the Cartesian path is defined.
+        dt_segments : Sequence[float]
+            Travel durations between successive target frames.
+        dt_blends : float | Sequence[float], default=0.1
+            Blend duration at every target frame, or one shared duration.
+        num_t_samples : int, default=100
+            Number of uniformly distributed trajectory samples.
+
+        Returns
+        -------
+        CartesianTrajectory
+            Sampled Cartesian trajectory.
+        """
+        return cls.from_targets(
+            target_frames=target_frames,
+            segment_durations=dt_segments,
+            blend_durations=dt_blends,
+            sample_count=num_t_samples,
         )
 
     def to_joint_space(
@@ -308,7 +389,7 @@ class CartesianTrajectory:
         ----------
         ref_frame : Literal["world", "end-effector"], default = "world"
             Indicates the reference frame in which the spatial velocities are
-            observed. By default, this reference frame is het world frame. If
+            observed. By default, this reference frame is the world frame. If
             ref_frame is "end-effector", spatial velocities are transformed to
             the frame of the end-effector.
         """
@@ -348,7 +429,7 @@ class CartesianTrajectory:
 
     @staticmethod
     def _pose_vectors_from_frames(frames: Sequence[Frame]) -> NumpyArray:
-        return CartesianMultiLineMotion._frames_to_pose_vectors(frames)
+        return BlendedCartesianMotion._frames_to_pose_vectors(frames)
 
     def plot_poses(self, show_targets: bool = False) -> CompositeLineChart:
         """

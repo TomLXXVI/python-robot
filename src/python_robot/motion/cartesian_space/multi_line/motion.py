@@ -13,93 +13,55 @@ from dataclasses import dataclass
 import numpy as np
 
 from ....base.types import NumpyArray
-from ....base import Frame
+from ....base import Frame, SpatialAcceleration, SpatialVelocity
 
-from .profile import BlendedPoseVectorProfile
+from .profile import BlendedVectorProfile
 
 
-__all__ = ["CartesianMultiLineMotion"]
+__all__ = ["BlendedCartesianMotion", "CartesianMultiLineMotion"]
 
 
 @dataclass
-class CartesianMultiLineMotion:
+class BlendedCartesianMotion:
     """
-    Class for finding a smooth Cartesian straight-line path through multiple
-    3D poses of the manipulator's end-effector frame.
+    Represent continuous blended Cartesian motion through target frames.
 
-    The motion is planned in a six-dimensional Cartesian pose space. The first
-    three components describe the position of the frame origin. The last three
-    components describe the frame orientation as an angle-axis vector.
+    Target frames are converted to continuous six-dimensional pose vectors.
+    A :class:`BlendedVectorProfile` defines their evolution in time. This class
+    does not choose sample times or construct a sampled trajectory.
 
-    The six-dimensional pose vector has the form
-
-        [x, y, z, rx, ry, rz]
-
-    where [rx, ry, rz] is an angle-axis vector. Its magnitude is the rotation
-    angle and its direction is the rotation axis.
-
-    The six pose components are interpolated with a vector-valued linear path
-    with parabolic blends. All components share the same blend times. This is
-    important for Cartesian straight-line motion, because the position
-    components must remain synchronized during the linear pieces.
-
-    Attributes
+    Parameters
     ----------
-    target_frames: Sequence[Frame]
-        Sequence of target poses (frames) through which the Cartesian path is
-        defined.
-    dt_segments: Sequence[float]
-        Sequence with the travel durations of each segment between two
-        successive target poses.
-    dt_blends: float | Sequence[float]
-        Single blend time or sequence of blend times at the target poses.
-    num_t_samples: int, default = 100
-        Number of time samples used to generate the trajectory.
+    target_frames : Sequence[Frame]
+        Frames through which the Cartesian path is defined.
+    segment_durations : Sequence[float]
+        Travel duration between each pair of successive target frames.
+    blend_durations : float | Sequence[float]
+        Blend duration at every target frame, or one shared duration.
     """
     target_frames: Sequence[Frame]
-    dt_segments: Sequence[float]
-    dt_blends: float | Sequence[float]
-    num_t_samples: int = 100
+    segment_durations: Sequence[float]
+    blend_durations: float | Sequence[float]
 
     def __post_init__(self) -> None:
         if len(self.target_frames) < 2:
             raise ValueError("At least two target frames are required.")
 
-        if len(self.dt_segments) != len(self.target_frames) - 1:
+        if len(self.segment_durations) != len(self.target_frames) - 1:
             raise ValueError(
-                f"Number of segment durations ({len(self.dt_segments)}) does "
+                f"Number of segment durations "
+                f"({len(self.segment_durations)}) does "
                 f"not match the number of segments "
                 f"({len(self.target_frames) - 1})."
             )
 
-        # Transform the target frames to "pose vectors" [x, y, z, rx, ry, rz],
-        # where:
-        # - [x, y, z] are the Cartesian components of the origin of a target
-        #   frame, and
-        # - [rx, ry, rz] are the Cartesian components of the angle-axis vector
-        #   representation of a target frame's orientation.
-        # When going from one target frame to the next, the change of frame
-        # orientation must happen with the smallest rotation possible.
         self.pose_vectors = self._frames_to_pose_vectors(self.target_frames)
 
-        # Once we have the target "pose vectors", we can use them to construct
-        # the motion time-functions (position, velocity and acceleration) of the
-        # "pose variables" x, y, z, rx, ry, and rz. This can be done in a
-        # similar fashion as with joint-space motion. Each of the position
-        # paths x(t), y(t), z(t), rx(t), ry(t), and rz(t) is composed of linear
-        # sections and parabolic blends.
-        # To ensure that the resultant motion between path points is a straight
-        # line in 3D space, the blend time of the parabolic blends must be the
-        # same for each of the "pose variables" x, y, z, rx, ry, and rz.
-        self._motion_profile = BlendedPoseVectorProfile(
+        self._profile = BlendedVectorProfile(
             pose_vectors=self.pose_vectors,
-            dt_segments=self.dt_segments,
-            dt_blends=self.dt_blends,
+            dt_segments=self.segment_durations,
+            dt_blends=self.blend_durations,
         )
-
-        # Time-sampling of the motion profile
-        res = self._time_sampling(self._motion_profile, self.num_t_samples)
-        self._t_arr, self._p_arr, self._V_arr, self._A_arr = res
 
     @staticmethod
     def _choose_equivalent_rotvec(
@@ -161,113 +123,205 @@ class CartesianMultiLineMotion:
 
         return np.array(pose_vectors)
 
-    # @staticmethod
-    # def _time_sampling(
-    #     motion_profile: BlendedPoseVectorProfile,
-    #     n_samples: int
-    # ) -> tuple[NumpyArray, ...]:
-    #     """
-    #     Takes uniform distributed time samples of the Cartesian motion profile.
-    #
-    #     Returns
-    #     -------
-    #     t_arr: NumpyArray
-    #         The time moments at which the values of the pose vectors are
-    #         calculated.
-    #     p_arr: NumpyArray
-    #         The values of the pose vectors in the course of time. The
-    #         number of rows of the array is equal to the number of time samples.
-    #         The number of columns is equal to 6 (x, y, z, rx, ry, rz).
-    #     pd_arr: NumpyArray
-    #         The values of the pose vector velocities in the course of time. The
-    #         number of rows of the array is equal to the number of time samples.
-    #         The number of columns is equal to 6 (x_dot, y_dot, z_dot, rx_dot,
-    #         ry_dot, rz_dot).
-    #     pdd_arr: NumpyArray
-    #         The values of the pose vector accelerations in the course of time.
-    #         The number of rows of the array is equal to the number of time
-    #         samples. The number of columns is equal to 6 (x_ddot, y_ddot, z_ddot,
-    #         rx_ddot, ry_ddot, rz_ddot).
-    #     """
-    #     t_arr, p_arr = motion_profile.position_profile(n_samples)
-    #     _, pd_arr = motion_profile.velocity_profile(n_samples)
-    #     _, pdd_arr = motion_profile.acceleration_profile(n_samples)
-    #     return t_arr, p_arr, pd_arr, pdd_arr
-
-    @staticmethod
-    def _time_sampling(
-        motion_profile: BlendedPoseVectorProfile,
-        n_samples: int,
-    ) -> tuple[NumpyArray, ...]:
-        t_arr, p_arr = motion_profile.position_profile(n_samples)
-        _, V_arr = motion_profile.spatial_velocity_profile(n_samples)
-        _, A_arr = motion_profile.acceleration_profile(n_samples)
-        return t_arr, p_arr, V_arr, A_arr
-
-    def trajectory(self) -> tuple[NumpyArray, list[Frame]]:
+    @property
+    def duration(self) -> float:
         """
-        Returns the trajectory of the end-effector frame in Cartesian space.
+        Return the total motion duration.
 
         Returns
         -------
-        t_arr: NumpyArray
-            Numpy array with time moments.
-        frames: list[Frame]
-            List of frame poses along the trajectory at the time instants in
-            `t_arr`.
+        float
+            Total duration in seconds.
         """
-        t_arr, path = self._motion_profile.position_profile(self.num_t_samples)
-        frames = [
-            Frame.from_pose_vector(pose_vector)
-            for pose_vector in path
-        ]
-        return t_arr, frames
+        return self._profile.dt_tot
 
     @property
-    def motion_profile(self) -> BlendedPoseVectorProfile:
+    def target_times(self) -> NumpyArray:
         """
-        Returns the underlying motion profile of the end-effector frame in
-        Cartesian space.
-        """
-        return self._motion_profile
+        Return the nominal times of the target frames.
 
-    # @property
-    # def motion_samples(self) -> tuple[NumpyArray, ...]:
-    #     """
-    #     Returns time samples of the end-effector frame motion in Cartesian
-    #     space.
-    #
-    #     Returns
-    #     -------
-    #     t_arr: NumpyArray
-    #         The time moments at which the values of the pose vectors are
-    #         calculated.
-    #     p_arr: NumpyArray
-    #         The values of the pose vectors in the course of time. The
-    #         number of rows of the array is equal to the number of time samples.
-    #         The number of columns is equal to 6 (x, y, z, rx, ry, rz).
-    #     pd_arr: NumpyArray
-    #         The values of the pose vector velocities in the course of time. The
-    #         number of rows of the array is equal to the number of time samples.
-    #         The number of columns is equal to 6 (x_dot, y_dot, z_dot, rx_dot,
-    #         ry_dot, rz_dot).
-    #     pdd_arr: NumpyArray
-    #         The values of the pose vector accelerations in the course of time.
-    #         The number of rows of the array is equal to the number of time
-    #         samples. The number of columns is equal to 6 (x_ddot, y_ddot, z_ddot,
-    #         rx_ddot, ry_ddot, rz_ddot).
-    #     """
-    #     return self._t_arr, self._p_arr, self._pd_arr, self._pdd_arr
+        Returns
+        -------
+        NumpyArray
+            One-dimensional array containing one time per target frame.
+        """
+        return self._profile.knot_times.copy()
+
+    @property
+    def profile(self) -> BlendedVectorProfile:
+        """
+        Return the underlying continuous vector profile.
+
+        Returns
+        -------
+        BlendedVectorProfile
+            Profile used to evaluate the Cartesian motion.
+        """
+        return self._profile
+
+    def pose_vector_at(self, time: float) -> NumpyArray:
+        """
+        Evaluate the Cartesian pose vector at a time.
+
+        Parameters
+        ----------
+        time : float
+            Evaluation time in seconds.
+
+        Returns
+        -------
+        NumpyArray
+            Pose vector ``(x, y, z, rx, ry, rz)``.
+        """
+        return self._profile.pose(time)
+
+    def frame_at(self, time: float) -> Frame:
+        """
+        Evaluate the end-effector frame at a time.
+
+        Parameters
+        ----------
+        time : float
+            Evaluation time in seconds.
+
+        Returns
+        -------
+        Frame
+            Cartesian frame at ``time``.
+        """
+        return Frame.from_pose_vector(self.pose_vector_at(time))
+
+    def spatial_velocity_at(self, time: float) -> NumpyArray:
+        """
+        Evaluate the spatial velocity at a time.
+
+        Parameters
+        ----------
+        time : float
+            Evaluation time in seconds.
+
+        Returns
+        -------
+        NumpyArray
+            Spatial velocity ``(vx, vy, vz, wx, wy, wz)``.
+        """
+        pose = self._profile.pose(time)
+        pose_velocity = self._profile.velocity(time)
+        velocity = SpatialVelocity.from_pose(pose, pose_velocity)
+        return np.asarray(velocity, dtype=float)
+
+    def spatial_acceleration_at(self, time: float) -> NumpyArray:
+        """
+        Evaluate the spatial acceleration at a time.
+
+        Parameters
+        ----------
+        time : float
+            Evaluation time in seconds.
+
+        Returns
+        -------
+        NumpyArray
+            Spatial acceleration ``(ax, ay, az, alphax, alphay, alphaz)``.
+        """
+        pose = self._profile.pose(time)
+        pose_velocity = self._profile.velocity(time)
+        pose_acceleration = self._profile.acceleration(time)
+        acceleration = SpatialAcceleration.from_pose(
+            pose,
+            pose_velocity,
+            pose_acceleration,
+        )
+        return np.asarray(acceleration, dtype=float)
+
+
+class CartesianMultiLineMotion(BlendedCartesianMotion):
+    """
+    Provide compatibility with the former sampled multi-line motion API.
+
+    New code should use :class:`BlendedCartesianMotion` and construct a
+    :class:`CartesianTrajectory` through its ``from_motion`` factory.
+
+    Parameters
+    ----------
+    target_frames : Sequence[Frame]
+        Cartesian target frames.
+    dt_segments : Sequence[float]
+        Travel durations between successive target frames.
+    dt_blends : float | Sequence[float]
+        Blend durations at the target frames.
+    num_t_samples : int, default=100
+        Number of samples generated for the compatibility API.
+    """
+
+    def __init__(
+        self,
+        target_frames: Sequence[Frame],
+        dt_segments: Sequence[float],
+        dt_blends: float | Sequence[float],
+        num_t_samples: int = 100,
+    ) -> None:
+        """
+        Initialize the compatibility motion and generate its samples.
+        """
+        super().__init__(
+            target_frames=target_frames,
+            segment_durations=dt_segments,
+            blend_durations=dt_blends,
+        )
+        self.dt_segments = dt_segments
+        self.dt_blends = dt_blends
+        self.num_t_samples = num_t_samples
+        self._sample_legacy_motion()
+
+    def _sample_legacy_motion(self) -> None:
+        """
+        Populate arrays required by the former sampled motion API.
+        """
+        self._t_arr = np.linspace(0.0, self.duration, self.num_t_samples)
+        self._p_arr = np.array([
+            self.pose_vector_at(time)
+            for time in self._t_arr
+        ])
+        self._V_arr = np.array([
+            self.spatial_velocity_at(time)
+            for time in self._t_arr
+        ])
+        self._A_arr = np.array([
+            self.spatial_acceleration_at(time)
+            for time in self._t_arr
+        ])
+
+    def trajectory(self) -> tuple[NumpyArray, list[Frame]]:
+        """
+        Return the legacy sampled frame trajectory.
+
+        Returns
+        -------
+        tuple[NumpyArray, list[Frame]]
+            Sample times and corresponding Cartesian frames.
+        """
+        frames = [
+            Frame.from_pose_vector(pose_vector)
+            for pose_vector in self._p_arr
+        ]
+        return self._t_arr, frames
+
+    @property
+    def motion_profile(self) -> BlendedVectorProfile:
+        """
+        Return the underlying profile under its former property name.
+        """
+        return self.profile
 
     @property
     def motion_samples(self) -> tuple[NumpyArray, ...]:
         """
-        Return sampled Cartesian motion data.
+        Return the samples required by the former motion API.
 
         Returns
         -------
         tuple[NumpyArray, ...]
-            Time samples, pose-vector samples, spatial velocity samples, and
-            spatial acceleration samples.
+            Times, poses, spatial velocities and spatial accelerations.
         """
         return self._t_arr, self._p_arr, self._V_arr, self._A_arr
