@@ -1,5 +1,5 @@
 """
-Pose-vector profiles for multi-line Cartesian motion.
+Pose-vector motion profiles for multi-line Cartesian motion.
 
 The profiles in this module operate on pose vectors of the form
 ``(x, y, z, rx, ry, rz)``. They provide time-dependent pose, velocity,
@@ -395,7 +395,7 @@ class VectorProfileSegment:
         tau = min(max(t - self.t0, 0.0), self.dt)
         return self.v0 + self.a * tau
 
-    # noinspection PyUnusedLocal
+    # noinspection unused-parameter
     def acceleration(self, t: float) -> NumpyArray:
         """
         Return the constant vector acceleration of this piece.
@@ -536,6 +536,7 @@ class BlendedVectorProfile(VectorProfile):
                 dt_eff = dt
 
             if dt_eff <= 0.0:
+                # noinspection string-format
                 raise ValueError(
                     f"Blend times are too large for segment {i}. "
                     f"The effective segment duration is {dt_eff:.6g}."
