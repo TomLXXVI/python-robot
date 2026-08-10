@@ -180,6 +180,10 @@ animators. It can draw coordinate frames, links, point markers, tool frames,
 end-effector paths, and animated kinematic chains. If Swift is installed, the
 optional `SwiftSimulator` can play joint-space trajectorys in Swift.
 
+See the [KinematicChain visualisation options cheat sheet](docs/KINEMATIC_CHAIN_VISUALIZATION_OPTIONS.md)
+for all options accepted by `plot()`, `plot_async()`, `animate()`, and
+`animate_async()`.
+
 ## Included Demos
 
 The `demos` folder contains notebooks and scripts that demonstrate:
