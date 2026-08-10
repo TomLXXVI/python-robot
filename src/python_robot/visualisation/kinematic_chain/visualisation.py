@@ -320,7 +320,9 @@ class KinematicChainViewer:
 
         ws = self._create_scene(**scene_kwargs)
 
-        for frame in self._get_link_frames():
+        for i, frame in enumerate(self._get_link_frames()):
+            if frame.name is None:
+                frame.name = str(i+1)
             ws.add_frame(frame, **frame_kwargs)
 
         for p1, p2 in self._get_link_endpoints():

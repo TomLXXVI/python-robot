@@ -379,27 +379,26 @@ class KinematicChain(AbstractKinematicChain):
                 )
         return joint_coords
 
-    def pose(self, index: int) -> Frame:
+    def link_pose(self, index: int) -> Frame:
         """
-        Returns the pose (Frame object) of the given link in the chain. The
-        pose describes the position and orientation of the frame of the given
-        link w.r.t. the base frame of the chain.
+        Return the pose of a link for the current joint configuration.
 
-        The returned frame will depend on the current configuration state of
-        this KinematicChain object.
+        The pose describes the position and orientation of the selected link
+        frame with respect to the base frame of the chain.
 
         Parameters
         ----------
-        index: int
+        index : int
             The index of the link in the chain.
             Note that positive indices are *not* zero-based. So, the first link
             in the chain has index 1 (instead of 0), and so on.
             Negative indices however are kept Python-like. So, the last link in
-            the chain (end-effector) has index -1, and so on.
+            the chain has index -1, and so on.
 
         Returns
         -------
         Frame
+            Pose of the selected link for the current joint configuration.
 
         Raises
         ------
@@ -409,13 +408,53 @@ class KinematicChain(AbstractKinematicChain):
         matrices = [self.base_frame.matrix]
         if 0 < index <= len(self):
             matrices.extend([self._links[i].frame.matrix for i in range(index)])
-        elif -len(self) < index < 0:
+        elif -len(self) <= index < 0:
             end = len(self) + index + 1
             matrices.extend([self._links[i].frame.matrix for i in range(end)])
         else:
             raise IndexError("KinematicChain index out of range.")
         matrix = np.linalg.multi_dot(matrices)
         return Frame.from_matrix(SE3(matrix), angle_unit="rad")
+
+    def pose(self, index: int) -> Frame:
+        """
+        Return the pose of a link for the current joint configuration.
+
+        This method is a backwards-compatible alias for :meth:`link_pose`.
+
+        Parameters
+        ----------
+        index : int
+            One-based positive or Python-style negative link index.
+
+        Returns
+        -------
+        Frame
+            Pose of the selected link with respect to the base frame.
+        """
+        return self.link_pose(index)
+
+    @property
+    def tool_pose(self) -> Frame:
+        """
+        Return the tool pose for the current joint configuration.
+
+        The result combines the pose of the last link with the fixed tool-frame
+        transformation.
+
+        Returns
+        -------
+        Frame
+            Pose of the tool frame with respect to the base frame.
+
+        Examples
+        --------
+        Update the chain configuration and obtain its corresponding tool pose:
+
+        >>> chain.joint_coords = joint_coords
+        >>> tcp_frame = chain.tool_pose
+        """
+        return self.link_pose(-1) * self.tool_frame
 
     def get_joint_configuration(
         self,
@@ -451,9 +490,10 @@ class KinematicChain(AbstractKinematicChain):
 
     def fwd_kin(self, joint_coords: Sequence[float] | None = None) -> Frame:
         """
-        Returns the pose of the end-effector (the last link frame farthest from
-        the base) w.r.t. the fixed base frame of the kinematic chain for the
-        given sequence of joint coordinates.
+        For the given sequence of joint coordinates, returns the pose of the
+        end-effector (either the pose of the tool frame, in case a tool has been
+        added, or the last link frame farthest from the base) w.r.t. the fixed
+        base frame of the kinematic chain.
 
         Parameters
         ----------
@@ -481,7 +521,7 @@ class KinematicChain(AbstractKinematicChain):
             )
             frame = Frame.from_matrix(se3_obj)
             return frame
-        return self.pose(-1) * self.tool_frame
+        return self.tool_pose
 
     def inv_kin(
         self,
