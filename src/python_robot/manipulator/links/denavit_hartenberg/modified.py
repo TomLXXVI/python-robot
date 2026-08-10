@@ -1,5 +1,9 @@
 """
 Modified Denavit-Hartenberg link classes.
+
+Modified Denavit-Hartenberg differs from standard Denavit-Hartenberg by placing
+the link coordinate frames at the near (proximal), rather than the far (distal)
+end of each link.
 """
 
 from python_robot._roboticstoolbox import PrismaticMDH, RevoluteMDH

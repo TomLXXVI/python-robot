@@ -35,6 +35,7 @@ IKSolverSpec = Literal["LM", "NR", "GN", "QP"]
 RefFrame = Literal["world", "end-effector"]
 
 
+# noinspection method-overriding
 class AbstractKinematicChain(MutableSequence[AbstractLink], ABC):
     """
     Abstract base class that implements a list for holding AbstractLink objects.

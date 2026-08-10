@@ -42,9 +42,9 @@ class Planar3R(SerialLinkManipulator):
         Parameters
         ----------
         l1: float
-            Length of links 1 in the chain.
+            Length of link 1 in the chain.
         l2: float
-            Length of links 2 in the chain.
+            Length of link 2 in the chain.
         point_masses: Sequence[float] | None, optional
             Point masses attached to the distal end of each modeled link.
             If two masses are given, they are assigned to the two non-zero
@@ -60,6 +60,7 @@ class Planar3R(SerialLinkManipulator):
 
         self.point_masses = self._normalize_point_masses(point_masses)
         self.q_lim = self._normalize_q_lim(q_lim)
+
         links = self._create_links()
 
         super().__init__(
@@ -89,7 +90,9 @@ class Planar3R(SerialLinkManipulator):
         )
 
     @staticmethod
-    def _normalize_q_lim(q_lim: Sequence[Sequence[float]] | None) -> tuple[tuple[float, float], ...] | None:
+    def _normalize_q_lim(
+        q_lim: Sequence[Sequence[float]] | None
+    ) -> tuple[tuple[float, float], ...] | None:
         if q_lim is None:
             return None
 
@@ -198,6 +201,7 @@ class Planar3R(SerialLinkManipulator):
         ee_frame: Frame,
         ini_guess: Sequence[float] | None = None,
         which_solver: IKSolverSpec = "LM",
+        check_joint_limits: bool = True,
         **kwargs
     ) -> NumpyArray:
         """
@@ -216,6 +220,9 @@ class Planar3R(SerialLinkManipulator):
             Initial joint-coordinate guess for the numerical solver.
         which_solver : IKSolverSpec, default = "LM"
             Numerical inverse-kinematics solver used by the parent class.
+        check_joint_limits: bool, default = True
+            Indicates whether to check that a solution satisfies any joint
+            limits or not.
         **kwargs
             Additional keyword arguments forwarded to the parent inverse
             kinematics implementation, except for ``mask``.

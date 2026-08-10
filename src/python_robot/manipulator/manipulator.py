@@ -20,6 +20,7 @@ from .links import LinkDynamicParams
 __all__ = ["SerialLinkManipulator"]
 
 
+# noinspection bad-argument-type
 class SerialLinkManipulator(KinematicChain):
     """
     Models a serial-link, single-arm manipulator for kinematic and dynamic
@@ -205,6 +206,9 @@ class SerialLinkManipulator(KinematicChain):
         NumpyArray
         """
         q = self._check_number_of_joint_coords(joint_coords)
+
+        if gravity is None:
+            return self.erobot.gravload(np.asarray(q, dtype=float))
 
         return self.erobot.gravload(
             np.asarray(q, dtype=float),

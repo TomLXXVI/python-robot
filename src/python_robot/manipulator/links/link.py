@@ -74,6 +74,7 @@ class LinkDynamicParams:
 
     def __str__(self) -> str:
         lines = [f"{k}: {v}" for k, v in self.to_dict().items()]
+        # noinspection string-conversion-without-dunder-method
         lines[2] = f"inertia:\n{self.inertia}"
         return "\n".join(lines)
 

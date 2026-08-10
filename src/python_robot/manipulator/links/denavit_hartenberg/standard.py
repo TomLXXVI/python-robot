@@ -1,5 +1,8 @@
 """
 Standard Denavit-Hartenberg link classes.
+
+In the standard Denavit-Hartenberg notation, the link frame is attached to the
+far (distal) end of the link.
 """
 
 from python_robot._roboticstoolbox import PrismaticDH, RevoluteDH

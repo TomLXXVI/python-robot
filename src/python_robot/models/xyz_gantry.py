@@ -114,6 +114,7 @@ class XYZGantry(SerialLinkManipulator):
         ee_frame: Frame,
         ini_guess: Sequence[float] | None = None,
         which_solver: str = "analytic",
+        check_joint_limits: bool = True,
         **kwargs,
     ) -> NumpyArray:
         """
