@@ -31,13 +31,18 @@ class _ManipulatorStub:
         return len(self.links)
 
 
-def _create_trajectory(joint_types: str = "RP") -> JointTrajectory:
+def _create_trajectory(
+    joint_types: str = "RP",
+    linear_unit: str = "m",
+) -> JointTrajectory:
     """Create a small sampled trajectory for plotting tests.
 
     Parameters
     ----------
     joint_types : str, default = "RP"
         Joint type sequence containing ``R`` and ``P`` characters.
+    linear_unit : str, default = "m"
+        Label for the trajectory's linear unit.
 
     Returns
     -------
@@ -61,6 +66,7 @@ def _create_trajectory(joint_types: str = "RP") -> JointTrajectory:
         q_sets=samples.copy(),
         motion_profiles=[],
         angle_unit="deg",
+        linear_unit=linear_unit,
     )
 
 
@@ -137,3 +143,11 @@ def test_homogeneous_prismatic_plot_keeps_a_single_axis() -> None:
     assert chart.y1.axes.get_ylabel() == "prismatic joint coordinate, m"
     np.testing.assert_allclose(chart.datasets["q1"]["y1_values"], [0.0, 0.25])
     assert chart.datasets["q1"]["y2_values"] is None
+
+
+def test_prismatic_plot_uses_configured_linear_unit_without_conversion() -> None:
+    """Verify that the linear unit changes only the displayed axis label."""
+    chart = _create_trajectory("P", linear_unit="mm").plot_positions()
+
+    assert chart.y1.axes.get_ylabel() == "prismatic joint coordinate, mm"
+    np.testing.assert_allclose(chart.datasets["q1"]["y1_values"], [0.0, 0.25])

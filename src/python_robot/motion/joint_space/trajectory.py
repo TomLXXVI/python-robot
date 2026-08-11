@@ -430,6 +430,7 @@ class JointTrajectory:
         q_sets: NumpyArray,
         motion_profiles: Sequence[MultiPointMotionProfile],
         angle_unit: AngleUnit = "deg",
+        linear_unit: str = "m",
     ) -> None:
         """
         Create a sampled joint-space trajectory.
@@ -456,6 +457,10 @@ class JointTrajectory:
             Analytic per-joint profiles, if available.
         angle_unit : AngleUnit, default = "deg"
             Angle unit used when rendering table output.
+        linear_unit : str, default = "m"
+            Label for the linear unit used by the trajectory. No unit
+            conversion is performed; prismatic joint values are plotted
+            exactly as supplied.
         """
         self._t_arr = t_arr
         self._q_arr = q_arr
@@ -467,6 +472,7 @@ class JointTrajectory:
         self.manipulator = manipulator
         self._q_sets = q_sets
         self._motion_profiles = motion_profiles
+        self.linear_unit = linear_unit
 
         self.n_joints = len(self.manipulator)
         self.n_segments = len(self.dt_segments)
@@ -485,6 +491,7 @@ class JointTrajectory:
         num_t_samples: int = 100,
         ini_guess: Sequence[float] | None = None,
         angle_unit: AngleUnit = "deg",
+        linear_unit: str = "m",
     ) -> JointTrajectory:
         """
         Creates a JointTrajectory object.
@@ -518,6 +525,9 @@ class JointTrajectory:
             inverse-kinematics solution as its initial guess.
         angle_unit: AngleUnit, default = "deg"
             Angle unit to be used in the tables.
+        linear_unit : str, default = "m"
+            Label for the linear unit used in plots. Prismatic joint values
+            are not converted.
         """
         jm = JointTrajectoryBuilder(
             targets, dt_segments, manipulator,
@@ -541,6 +551,7 @@ class JointTrajectory:
             q_sets=q_sets,
             motion_profiles=motion_profiles,
             angle_unit=angle_unit,
+            linear_unit=linear_unit,
         )
 
     def to_cartesian_space(self) -> CartesianTrajectory:
@@ -834,7 +845,7 @@ class JointTrajectory:
 
         time_suffix = {0: "", 1: "/s", 2: "/s²"}[time_order]
         angular_unit = f"{self._tables.angle_unit}{time_suffix}"
-        linear_unit = f"m{time_suffix}"
+        linear_unit = f"{self.linear_unit}{time_suffix}"
 
         if has_revolute:
             chart.y1.add_title(f"revolute joint {quantity}, {angular_unit}")
