@@ -804,6 +804,101 @@ class JointTrajectory:
             weights[1:-1] = (dt_arr[:-1] + dt_arr[1:]) / 2.0
         return weights
 
+    def _configure_joint_plot_axes(
+        self,
+        chart: LineChart,
+        quantity: str,
+        time_order: int = 0,
+    ) -> bool:
+        """
+        Configure joint plot axes according to the joint coordinate types.
+
+        Parameters
+        ----------
+        chart : LineChart
+            Chart whose vertical axes are configured.
+        quantity : str
+            Physical quantity displayed, such as ``coordinate`` or
+            ``velocity``.
+        time_order : int, default = 0
+            Number of time derivatives represented by the plotted values.
+
+        Returns
+        -------
+        bool
+            True when prismatic joints must use the secondary y-axis.
+        """
+        has_revolute = any(link.is_revolute for link in self.manipulator.links)
+        has_prismatic = any(link.is_prismatic for link in self.manipulator.links)
+        use_y2 = has_revolute and has_prismatic
+
+        time_suffix = {0: "", 1: "/s", 2: "/s²"}[time_order]
+        angular_unit = f"{self._tables.angle_unit}{time_suffix}"
+        linear_unit = f"m{time_suffix}"
+
+        if has_revolute:
+            chart.y1.add_title(f"revolute joint {quantity}, {angular_unit}")
+        else:
+            chart.y1.add_title(f"prismatic joint {quantity}, {linear_unit}")
+
+        if use_y2:
+            chart.add_y2_axis()
+            assert chart.y2 is not None
+            chart.y2.add_title(f"prismatic joint {quantity}, {linear_unit}")
+
+        return use_y2
+
+    def _add_joint_plot_data(
+        self,
+        chart: LineChart,
+        joint_index: int,
+        label: str,
+        times: NumpyArray,
+        values: NumpyArray,
+        *,
+        use_y2: bool,
+        style_props: dict[str, object] | None = None,
+    ) -> None:
+        """
+        Add joint data to the axis matching its coordinate type.
+
+        Parameters
+        ----------
+        chart : LineChart
+            Chart receiving the dataset.
+        joint_index : int
+            Zero-based joint index.
+        label : str
+            Dataset label used by the legend.
+        times : NumpyArray
+            Time coordinates of the samples.
+        values : NumpyArray
+            Joint coordinates or their time derivatives.
+        use_y2 : bool
+            Whether prismatic joints use the secondary y-axis.
+        style_props : dict[str, object], optional
+            Matplotlib styling options for the dataset.
+        """
+        link = self.manipulator.links[joint_index]
+        plot_values = values
+        if link.is_revolute and self._tables.angle_unit == "deg":
+            plot_values = np.rad2deg(values)
+
+        if use_y2 and link.is_prismatic:
+            chart.add_xy_data(
+                label=label,
+                x1_values=times,
+                y2_values=plot_values,
+                style_props=style_props,
+            )
+        else:
+            chart.add_xy_data(
+                label=label,
+                x1_values=times,
+                y1_values=plot_values,
+                style_props=style_props,
+            )
+
     def plot_positions(self, show_targets: bool = False) -> LineChart:
         """
         Plots the positions q(t) of the joints and returns the LineChart
@@ -813,27 +908,30 @@ class JointTrajectory:
         -------
         LineChart
         """
-        def _to_degrees(i: int, q: NumpyArray) -> NumpyArray:
-            # convert joint angles to degrees if required
-            if self.manipulator.links[i].is_revolute and self._tables.angle_unit == "deg":
-                return np.rad2deg(q)
-            return q
-
         target_times = np.concatenate(([0.0], np.cumsum(self.dt_segments)))
 
         chart = LineChart()
+        use_y2 = self._configure_joint_plot_axes(
+            chart, "coordinate", time_order=0
+        )
 
         for i in range(self.n_joints):
-            chart.add_xy_data(
+            self._add_joint_plot_data(
+                chart,
+                i,
                 label=f"q{i+1}",
-                x1_values=self._t_arr,
-                y1_values=_to_degrees(i, self._q_arr[:, i]),
+                times=self._t_arr,
+                values=self._q_arr[:, i],
+                use_y2=use_y2,
             )
             if show_targets:
-                chart.add_xy_data(
+                self._add_joint_plot_data(
+                    chart,
+                    i,
                     label=f"q{i+1}, targets",
-                    x1_values=target_times,
-                    y1_values=_to_degrees(i, self._q_sets[:, i]),
+                    times=target_times,
+                    values=self._q_sets[:, i],
+                    use_y2=use_y2,
                     style_props={
                         "marker": "o",
                         "linestyle": "none",
@@ -841,7 +939,6 @@ class JointTrajectory:
                 )
 
         chart.x1.add_title("time, s")
-        chart.y1.add_title("joint coordinate")
         columns = 1
         if self.n_joints == 1:
             columns = 1
@@ -869,18 +966,27 @@ class JointTrajectory:
             ])
 
         chart = LineChart()
+        use_y2 = self._configure_joint_plot_axes(
+            chart, "velocity", time_order=1
+        )
         for i in range(self.n_joints):
-            chart.add_xy_data(
+            self._add_joint_plot_data(
+                chart,
+                i,
                 label=f"qd{i+1}",
-                x1_values=self._t_arr,
-                y1_values=self._qd_arr[:, i],
+                times=self._t_arr,
+                values=self._qd_arr[:, i],
+                use_y2=use_y2,
             )
             if self.has_motion_profiles and show_targets:
                 # noinspection PyUnboundLocalVariable
-                chart.add_xy_data(
+                self._add_joint_plot_data(
+                    chart,
+                    i,
                     label=f"qd{i+1}, targets",
-                    x1_values=target_times,
-                    y1_values=target_qd_arr[:, i],
+                    times=target_times,
+                    values=target_qd_arr[:, i],
+                    use_y2=use_y2,
                     style_props={
                         "marker": "o",
                         "linestyle": "none",
@@ -888,7 +994,6 @@ class JointTrajectory:
                 )
 
         chart.x1.add_title("time, s")
-        chart.y1.add_title("joint velocity")
         columns = 1
         if self.n_joints == 1:
             columns = 1
@@ -916,18 +1021,27 @@ class JointTrajectory:
             ])
 
         chart = LineChart()
+        use_y2 = self._configure_joint_plot_axes(
+            chart, "acceleration", time_order=2
+        )
         for i in range(self.n_joints):
-            chart.add_xy_data(
+            self._add_joint_plot_data(
+                chart,
+                i,
                 label=f"qdd{i + 1}",
-                x1_values=self._t_arr,
-                y1_values=self._qdd_arr[:, i],
+                times=self._t_arr,
+                values=self._qdd_arr[:, i],
+                use_y2=use_y2,
             )
             if self.has_motion_profiles and show_targets:
                 # noinspection PyUnboundLocalVariable
-                chart.add_xy_data(
+                self._add_joint_plot_data(
+                    chart,
+                    i,
                     label=f"qdd{i + 1}, targets",
-                    x1_values=target_times,
-                    y1_values=target_qdd_arr[:, i],
+                    times=target_times,
+                    values=target_qdd_arr[:, i],
+                    use_y2=use_y2,
                     style_props={
                         "marker": "o",
                         "linestyle": "none",
@@ -935,7 +1049,6 @@ class JointTrajectory:
                 )
 
         chart.x1.add_title("time, s")
-        chart.y1.add_title("joint acceleration")
         columns = 1
         if self.n_joints == 1:
             columns = 1
