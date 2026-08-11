@@ -895,19 +895,22 @@ class JointTrajectory:
         if link.is_revolute and self._tables.angle_unit == "deg":
             plot_values = np.rad2deg(values)
 
+        plot_style = dict(style_props or {})
+        plot_style.setdefault("color", f"C{joint_index % 10}")
+
         if use_y2 and link.is_prismatic:
             chart.add_xy_data(
                 label=label,
                 x1_values=times,
                 y2_values=plot_values,
-                style_props=style_props,
+                style_props=plot_style,
             )
         else:
             chart.add_xy_data(
                 label=label,
                 x1_values=times,
                 y1_values=plot_values,
-                style_props=style_props,
+                style_props=plot_style,
             )
 
     def plot_positions(self, show_targets: bool = False) -> LineChart:

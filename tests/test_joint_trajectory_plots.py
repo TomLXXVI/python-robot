@@ -125,6 +125,10 @@ def test_position_targets_use_the_matching_joint_axes() -> None:
     """Verify that target markers use the same axes as their joint traces."""
     chart = _create_trajectory().plot_positions(show_targets=True)
 
+    assert chart.datasets["q1"]["style_props"]["color"] == "C0"
+    assert chart.datasets["q1, targets"]["style_props"]["color"] == "C0"
+    assert chart.datasets["q2"]["style_props"]["color"] == "C1"
+    assert chart.datasets["q2, targets"]["style_props"]["color"] == "C1"
     np.testing.assert_allclose(
         chart.datasets["q1, targets"]["y1_values"], [0.0, 180.0]
     )
