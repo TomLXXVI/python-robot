@@ -384,7 +384,8 @@ class KinematicChain(AbstractKinematicChain):
         Return the pose of a link for the current joint configuration.
 
         The pose describes the position and orientation of the selected link
-        frame with respect to the base frame of the chain.
+        frame with respect to the world frame. The fixed base-frame
+        transformation is included in the returned pose.
 
         Parameters
         ----------
@@ -398,7 +399,8 @@ class KinematicChain(AbstractKinematicChain):
         Returns
         -------
         Frame
-            Pose of the selected link for the current joint configuration.
+            World-relative pose of the selected link for the current joint
+            configuration.
 
         Raises
         ------
@@ -430,22 +432,24 @@ class KinematicChain(AbstractKinematicChain):
         Returns
         -------
         Frame
-            Pose of the selected link with respect to the base frame.
+            Pose of the selected link with respect to the world frame.
         """
         return self.link_pose(index)
 
     @property
     def tool_pose(self) -> Frame:
         """
-        Return the tool pose for the current joint configuration.
+        Return the world-relative tool pose for the current configuration.
 
         The result combines the pose of the last link with the fixed tool-frame
-        transformation.
+        transformation. Because the last-link pose includes the base-frame
+        transformation, the returned tool pose is expressed with respect to
+        the world frame.
 
         Returns
         -------
         Frame
-            Pose of the tool frame with respect to the base frame.
+            Pose of the tool frame with respect to the world frame.
 
         Examples
         --------
@@ -492,8 +496,8 @@ class KinematicChain(AbstractKinematicChain):
         """
         For the given sequence of joint coordinates, returns the pose of the
         end-effector (either the pose of the tool frame, in case a tool has been
-        added, or the last link frame farthest from the base) w.r.t. the fixed
-        base frame of the kinematic chain.
+        added, or the last link frame farthest from the base) with respect to
+        the world frame. The fixed base-frame transformation is included.
 
         Parameters
         ----------
@@ -510,6 +514,7 @@ class KinematicChain(AbstractKinematicChain):
         Returns
         -------
         Frame
+            World-relative pose of the end effector.
         """
         if joint_coords is not None:
             joint_coords = self._check_number_of_joint_coords(joint_coords)
@@ -533,14 +538,14 @@ class KinematicChain(AbstractKinematicChain):
     ) -> NumpyArray:
         """
         Given the desired pose of the end-effector (i.e. the link frame farthest
-        from the base) w.r.t. the base frame of the kinematic chain, returns a
-        (possible) solution for the joint coordinates using a numeric
-        IK-solver .
+        from the base, including the tool transformation) with respect to the
+        world frame, returns a possible solution for the joint coordinates
+        using a numeric IK solver.
 
         Parameters
         ----------
-        ee_frame: Frame
-            Desired pose of the end-effector.
+        ee_frame : Frame
+            Desired world-relative pose of the end effector.
         ini_guess: Sequence[float], optional
             An initial guess for the joint coordinates.
         which_solver: IKSolverSpec, default = "LM"
@@ -909,8 +914,10 @@ class KinematicChain(AbstractKinematicChain):
                 Width and height of the render window in pixels.
             ``world_frame_scale`` : float, default=1.0
                 Axis length of the world reference frame.
+            ``show_base_frame`` : bool, default=True
+                Draw the fixed manipulator base frame.
             ``frame_scale`` : float, default=1.0
-                Axis length of each link frame.
+                Axis length of the base and link frames.
             ``line_width`` : float, default=2.0
                 Line width of the link-frame axes.
             ``show_label`` : bool, default=True
@@ -1032,6 +1039,9 @@ class KinematicChain(AbstractKinematicChain):
                 Line width of the manipulator links.
             ``show_frames`` : bool, default=True
                 Draw the local link frames.
+            ``show_base_frame`` : bool, default=True
+                Draw the fixed manipulator base frame independently of the
+                link frames.
             ``frame_names`` : Sequence[str] or None, default=None
                 Optional labels for the link frames.
             ``fps`` : int, default=20

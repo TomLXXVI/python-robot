@@ -27,10 +27,10 @@ class KinematicChainViewer:
     """
     Plot and animate a kinematic chain in 3D space.
 
-    The viewer draws the world frame, the manipulator link frames, link
-    segments, and optionally the tool/TCP frame. Link segments start at the
-    manipulator base frame, so a displaced base frame is reflected in the
-    rendered robot geometry.
+    The viewer draws the world frame, the fixed manipulator base frame, the
+    link frames, link segments, and optionally the tool/TCP frame. Link
+    segments start at the manipulator base frame, so a displaced base frame is
+    reflected in the rendered robot geometry.
     """
     def __init__(self, kinematic_chain: KinematicChain) -> None:
         """
@@ -46,12 +46,27 @@ class KinematicChainViewer:
         self._plot_scene_kwargs: dict[str, Any] = {}
         self._plot_frame_kwargs: dict[str, Any] = {}
         self._plot_tool_visual_kwargs: dict[str, Any] = {}
+        self._plot_show_base_frame: bool = True
         self._anim_scene_kwargs: dict[str, Any] = {}
         self._anim_anim_kwargs: dict[str, Any] = {}
 
+    def _get_base_frame(self) -> Frame:
+        """
+        Return a named copy of the world-relative manipulator base frame.
+
+        Returns
+        -------
+        Frame
+            Base frame suitable for visualization. An unnamed base frame is
+            assigned the display name ``"B"`` without modifying the chain.
+        """
+        base_frame = Frame.from_matrix(self.kinematic_chain.base_frame.matrix)
+        base_frame.name = self.kinematic_chain.base_frame.name or "B"
+        return base_frame
+
     def _get_link_frames(self) -> list[Frame]:
         return [
-            self.kinematic_chain.pose(i)
+            self.kinematic_chain.link_pose(i)
             for i in self.kinematic_chain.iter_indices()
         ]
 
@@ -126,7 +141,7 @@ class KinematicChainViewer:
 
         tool_frame = self.kinematic_chain.fwd_kin()
         tool_frame.name = tool_name if tool_name is not None else ""
-        last_link_frame = self.kinematic_chain.pose(-1)
+        last_link_frame = self.kinematic_chain.link_pose(-1)
         tcp_origin = np.asarray(tool_frame.origin, dtype=float)
         link_origin = np.asarray(last_link_frame.origin, dtype=float)
 
@@ -153,7 +168,14 @@ class KinematicChainViewer:
                 line_width=tool_frame_line_width,
             )
 
-    def _plot_kwargs_dispatcher(self, **kwargs) -> tuple[dict[str, Any], ...]:
+    def _plot_kwargs_dispatcher(
+        self,
+        **kwargs
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], bool]:
+        show_base_frame = kwargs.pop(
+            "show_base_frame",
+            self._plot_show_base_frame,
+        )
         world_frame_scale = kwargs.pop(
             "world_frame_scale",
             self._plot_scene_kwargs.get("world_frame_scale", 1.0)
@@ -210,7 +232,12 @@ class KinematicChainViewer:
             for k, v in self._plot_tool_visual_kwargs.items()
             if k not in tool_visual_kwargs.keys()
         })
-        return scene_kwargs, frame_kwargs, tool_visual_kwargs
+        return (
+            scene_kwargs,
+            frame_kwargs,
+            tool_visual_kwargs,
+            show_base_frame,
+        )
 
     def set_plot_options(self, **kwargs) -> None:
         """
@@ -226,6 +253,7 @@ class KinematicChainViewer:
         self._plot_scene_kwargs = tup[0]
         self._plot_frame_kwargs = tup[1]
         self._plot_tool_visual_kwargs = tup[2]
+        self._plot_show_base_frame = tup[3]
 
     def _anim_kwargs_dispatcher(self, **kwargs) -> tuple[dict[str, Any], ...]:
         world_frame_scale = kwargs.pop(
@@ -316,9 +344,17 @@ class KinematicChainViewer:
         WorldScene
             Scene containing the current manipulator visualization.
         """
-        scene_kwargs, frame_kwargs, tool_visual_kwargs = self._plot_kwargs_dispatcher(**kwargs)
+        (
+            scene_kwargs,
+            frame_kwargs,
+            tool_visual_kwargs,
+            show_base_frame,
+        ) = self._plot_kwargs_dispatcher(**kwargs)
 
         ws = self._create_scene(**scene_kwargs)
+
+        if show_base_frame:
+            ws.add_frame(self._get_base_frame(), **frame_kwargs)
 
         for i, frame in enumerate(self._get_link_frames()):
             if frame.name is None:

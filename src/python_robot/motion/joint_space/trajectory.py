@@ -8,7 +8,7 @@ inverse kinematics, profiled per joint, sampled, and exposed through the
 """
 
 from __future__ import annotations
-from typing import Sequence
+from typing import Sequence, TYPE_CHECKING
 
 from enum import StrEnum
 from dataclasses import dataclass
@@ -22,6 +22,10 @@ from automation_motion.profiles_1D.multi_point import MultiPointCubicPath, Multi
 from ...base import Frame
 from ...manipulator import SerialLinkManipulator, ConfigurationError
 from ...utils import array_to_table
+
+if TYPE_CHECKING:
+    from ..cartesian_space import CartesianTrajectory
+
 
 __all__ = [
     "MultiPointMotionProfile",

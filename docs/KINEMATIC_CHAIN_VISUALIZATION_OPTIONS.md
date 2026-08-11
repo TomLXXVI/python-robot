@@ -35,6 +35,19 @@ chain.plot(frame_scale=0.5)
 
 Unknown options raise `TypeError`.
 
+## Reference frames
+
+The viewer draws the following coordinate frames:
+
+- the world frame `W`;
+- the fixed manipulator base frame;
+- the link frames;
+- optionally, the tool/TCP frame.
+
+The base, link, and tool poses are all expressed with respect to the world
+frame. If the manipulator base frame has no name, the viewer displays it with
+the label `B`. The chain's original `base_frame` object is not modified.
+
 ## Scene options
 
 These options are available for plotting and animation.
@@ -55,15 +68,16 @@ These options are available for plotting and animation.
 These options are accepted by `plot()` and `plot_async()`, in addition to the
 scene options above.
 
-### Link-frame options
+### Base- and link-frame options
 
 | Option | Type | Default | Description |
 |---|---|---:|---|
-| `frame_scale` | `float` | `1.0` | Axis length of each link frame. |
-| `line_width` | `float` | `2.0` | Line width of the link-frame axes. |
-| `show_label` | `bool` | `True` | Show labels for named link frames. |
+| `show_base_frame` | `bool` | `True` | Draw the fixed manipulator base frame. |
+| `frame_scale` | `float` | `1.0` | Axis length of the base and link frames. |
+| `line_width` | `float` | `2.0` | Line width of the base- and link-frame axes. |
+| `show_label` | `bool` | `True` | Show labels for the base and named link frames. |
 | `label_offset` | `float` | `0.1` | Label offset relative to `frame_scale`. |
-| `label_font_size` | `int` | `14` | Font size of link-frame labels. |
+| `label_font_size` | `int` | `14` | Font size of base- and link-frame labels. |
 
 ### Tool/TCP options
 
@@ -96,10 +110,11 @@ the scene options above.
 
 | Option | Type | Default | Description |
 |---|---|---:|---|
-| `frame_scale` | `float` | `1.0` | Axis length of each link frame. |
-| `frame_line_width` | `float` | `2.0` | Line width of the link-frame axes. |
+| `frame_scale` | `float` | `1.0` | Axis length of the base and link frames. |
+| `frame_line_width` | `float` | `2.0` | Line width of the base- and link-frame axes. |
 | `link_line_width` | `float` | `5.0` | Line width of the manipulator links. |
 | `show_frames` | `bool` | `True` | Draw the local link frames. |
+| `show_base_frame` | `bool` | `True` | Draw the fixed manipulator base frame independently of `show_frames`. |
 | `frame_names` | `Sequence[str] \| None` | `None` | Optional labels for the link frames, ordered from base to tool. |
 
 ### Playback and output
@@ -155,6 +170,7 @@ chain.plot(
     spacing=0.25,
     background_color="white",
     world_frame_scale=0.3,
+    show_base_frame=True,
     frame_scale=0.2,
     line_width=3.0,
     tool_visual="both",
@@ -167,6 +183,7 @@ chain.animate(
     fps=30,
     step=2,
     frame_scale=0.2,
+    show_base_frame=True,
     link_line_width=6.0,
     show_ee_path=True,
     ee_path_color="orange",

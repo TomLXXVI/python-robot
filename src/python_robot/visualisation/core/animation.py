@@ -496,11 +496,30 @@ class KinematicChainAnimator(FrameAnimator):
     chain after the animation finishes.
     """
     @staticmethod
+    def _get_base_frame(chain: KinematicChain) -> Frame:
+        """
+        Return a named copy of the world-relative manipulator base frame.
+
+        Parameters
+        ----------
+        chain : KinematicChain
+            Chain whose fixed base frame should be visualized.
+
+        Returns
+        -------
+        Frame
+            Base frame with display name ``"B"`` when no name was assigned.
+        """
+        base_frame = Frame.from_matrix(chain.base_frame.matrix)
+        base_frame.name = chain.base_frame.name or "B"
+        return base_frame
+
+    @staticmethod
     def _get_link_frames(chain: KinematicChain) -> list[Frame]:
         """
         Return the poses of all links frames in the chain.
         """
-        return [chain.pose(i) for i in chain.iter_indices()]
+        return [chain.link_pose(i) for i in chain.iter_indices()]
 
     @classmethod
     def _get_link_endpoints(
@@ -546,7 +565,7 @@ class KinematicChainAnimator(FrameAnimator):
 
     @staticmethod
     def _get_last_link_origin(chain: KinematicChain) -> np.ndarray:
-        return np.asarray(chain.pose(-1).origin, dtype=float).reshape(3)
+        return np.asarray(chain.link_pose(-1).origin, dtype=float).reshape(3)
 
     @staticmethod
     def _make_path_mesh(points: list[np.ndarray]) -> pv.PolyData:
@@ -580,6 +599,7 @@ class KinematicChainAnimator(FrameAnimator):
         frame_line_width: float = 2.0,
         link_line_width: float = 5.0,
         show_frames: bool = True,
+        show_base_frame: bool = True,
         frame_names: Sequence[str] | None = None,
         fps: int = 20,
         step: int = 1,
@@ -621,6 +641,8 @@ class KinematicChainAnimator(FrameAnimator):
             Width of links segments.
         show_frames : bool, default=True
             If True, draw the local links frames.
+        show_base_frame : bool, default=True
+            If True, draw the fixed manipulator base frame.
         frame_names : Sequence[str] | None, default=None
             Optional names for the links frames.
         fps : int, default=20
@@ -679,6 +701,14 @@ class KinematicChainAnimator(FrameAnimator):
         animation_failed = False
         try:
             chain.joint_coords = sampled_joint_sets[0]
+
+            if show_base_frame:
+                self.scene.add_frame(
+                    frame=self._get_base_frame(chain),
+                    frame_scale=frame_scale,
+                    line_width=frame_line_width,
+                    show_label=True,
+                )
 
             frame_artists: list[FrameArtist] = []
             if show_frames:
@@ -861,6 +891,7 @@ class KinematicChainAnimator(FrameAnimator):
         frame_line_width: float = 2.0,
         link_line_width: float = 5.0,
         show_frames: bool = True,
+        show_base_frame: bool = True,
         frame_names: Sequence[str] | None = None,
         fps: int = 20,
         step: int = 1,
@@ -899,6 +930,14 @@ class KinematicChainAnimator(FrameAnimator):
         animation_failed = False
         try:
             chain.joint_coords = sampled_joint_sets[0]
+
+            if show_base_frame:
+                self.scene.add_frame(
+                    frame=self._get_base_frame(chain),
+                    frame_scale=frame_scale,
+                    line_width=frame_line_width,
+                    show_label=True,
+                )
 
             frame_artists: list[FrameArtist] = []
             if show_frames:
